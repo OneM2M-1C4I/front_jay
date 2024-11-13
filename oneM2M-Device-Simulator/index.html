@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Seat Control Panel</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="stylesheet"
+      href="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css"
+    />
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+  </head>
+  <body>
+    <div id="seat-controls" class="container">
+      <div class="row">
+        <script>
+          for (let i = 1; i <= 10; i++) {
+            // Each seat occupies 2 columns on medium and larger screens
+            document.write(`
+          <div class="col-md-2 mb-4 d-flex align-items-stretch">
+            <div class="card text-center w-100">
+              <img src="images/icon-seat.png" alt="Seat Icon" style="width: 50px; margin: 10px auto;">
+              <h5 class="card-title">Seat ${i}</h5>
+              <button onclick="activateSeat('seat${i}')" class="btn btn-primary">Activate Seat</button>
+              
+              <!-- Control buttons, hidden by default and shown upon activation -->
+              <div id="seat${i}-controls" style="display: none;">
+                <img src="images/icon-camera.png" alt="Camera Icon" style="width: 30px;">
+                <button id="seat${i}-Camera" data-state="0" onclick="toggleDevice('Camera', 'seat${i}')" class="btn btn-info btn-sm mt-1">Toggle Camera</button>
+                
+                <img src="images/icon-light.png" alt="Light Icon" style="width: 30px;">
+                <button id="seat${i}-Light" data-state="0" onclick="toggleDevice('Light', 'seat${i}')" class="btn btn-warning btn-sm mt-1">Toggle Light</button>
+                
+                <img src="images/icon-led.png" alt="LED Icon" style="width: 30px;">
+                <button id="seat${i}-LED" data-state="0" onclick="toggleDevice('LED', 'seat${i}')" class="btn btn-success btn-sm mt-1">Toggle LED</button>
+              </div>
+            </div>
+          </div>
+        `);
+          }
+        </script>
+      </div>
+    </div>
+
+    <script>
+      function activateSeat(seatName) {
+        // Call server to activate seat and its devices
+        $.ajax({
+          type: "POST",
+          url: `devices/${seatName}?type=seat`,
+          success: function () {
+            alert(`${seatName} activated.`);
+            document.getElementById(`${seatName}-controls`).style.display =
+              "block";
+          },
+        });
+      }
+
+      function toggleDevice(deviceType, seatName) {
+        const typeIndexMap = { Camera: 0, Light: 1, LED: 2 };
+        const typeIndex = typeIndexMap[deviceType];
+
+        // Check current state
+        const button = document.getElementById(`${seatName}-${deviceType}`);
+        const currentState = button.dataset.state || "0";
+        const newState = currentState === "0" ? "1" : "0";
+
+        $.ajax({
+          type: "POST",
+          url: `devices/${seatName}_${deviceType}?typeIndex=${typeIndex}&value=${newState}`, // Send the updated state (1 or 0)
+          success: function () {
+            // Update the UI to reflect the new state
+            button.dataset.state = newState; // Store new state
+            alert(
+              `${deviceType} in ${seatName} toggled to ${
+                newState === "1" ? "on" : "off"
+              }.`
+            );
+          },
+        });
+      }
+    </script>
+  </body>
+</html>
