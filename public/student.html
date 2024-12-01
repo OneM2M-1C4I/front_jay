@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Page</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f5f5f5;
+      display: flex;
+      flex-direction: column;
+    }
+
+    h1 {
+      margin-top: 20px;
+      font-size: 2em;
+      color: black;
+      text-align: center;
+    }
+
+    .main-container {
+      display: flex;
+      width: 100%;
+      height: 100vh;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    .seat-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      width: 66%;
+      padding-right: 20px;
+      box-sizing: border-box;
+    }
+
+    .choose-seat {
+      text-align: center;
+      font-size: 1.5em;
+      color: black;
+      font-weight: bold;
+      margin-bottom: 20px;
+    }
+
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 20px;
+      width: 100%;
+    }
+
+    .seat-card {
+      background: white;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      border-radius: 10px;
+      text-align: center;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .seat-card img {
+      width: 50px;
+      height: 50px;
+      margin-bottom: 10px;
+    }
+
+    .seat-card button {
+      background-color: blue;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-top: 10px;
+    }
+
+    .seat-card button:hover {
+      background-color: darkblue;
+    }
+
+    .sub-devices {
+      margin-top: 10px;
+      width: 100%;
+      text-align: center;
+      display: none;
+    }
+
+    .sub-device {
+      margin: 15px 0;
+      text-align: center;
+    }
+
+    .sub-device img {
+      width: 30px;
+      height: 30px;
+      margin-bottom: 5px;
+    }
+
+    .sub-device-text {
+      font-size: 14px;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .sub-device button {
+      margin: 5px;
+      padding: 5px 10px;
+      background-color: blue;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    .sub-device button:hover {
+      background-color: darkblue;
+    }
+
+    .feedback-container {
+      width: 33%;
+      background: white;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      border-radius: 10px;
+      padding: 20px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: flex-start;
+    }
+
+    .feedback-title {
+      font-size: 1.5em;
+      font-weight: bold;
+      margin-bottom: 10px;
+      text-align: center;
+      width: 100%;
+    }
+
+    .feedback-content {
+      flex: 1;
+      width: 100%;
+      border: 1px solid black;
+      border-radius: 5px;
+      padding: 10px;
+      box-sizing: border-box;
+      background-color: #f9f9f9;
+      overflow-y: auto;
+    }
+
+    .emergency-button {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background-color: red;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+    }
+
+    .emergency-button:hover {
+      background-color: darkred;
+    }
+  </style>
+</head>
+<body>
+  <h1>Student Page</h1>
+  <button class="emergency-button" onclick="sendEmergencyAlert()">
+    <img src="/images/icon-warning.png" alt="Emergency Icon" style="width: 20px; height: 20px;">
+    Emergency button
+  </button>
+  <div class="main-container">
+    <div class="seat-container">
+      <div class="choose-seat">Choose your seat</div>
+      <div class="grid-container" id="seatContainer">
+        <!-- JavaScript로 좌석 생성 -->
+      </div>
+    </div>
+
+    <div class="feedback-container">
+      <div class="feedback-title">Feedback for your posture</div>
+      <div class="feedback-content" id="feedbackContent">
+        <!-- 피드백 내용 표시 -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const seatContainer = document.getElementById('seatContainer');
+    const feedbackContent = document.getElementById('feedbackContent');
+    const seats = 21;
+
+    for (let i = 1; i <= seats; i++) {
+      const seatDiv = document.createElement('div');
+      seatDiv.className = 'seat-card';
+      seatDiv.innerHTML = `
+        <img src="/images/icon-seat.png" alt="Seat Icon">
+        <p>Seat ${i}</p>
+        <button onclick="activateSeat(${i})">Activate Seat</button>
+        <div class="sub-devices" id="subDevices${i}">
+          <div class="sub-device">
+            <img src="/images/icon-camera.png" alt="Camera Icon">
+            <div class="sub-device-text">Camera</div>
+            <button onclick="toggleSubDevice(${i}, 'Camera', 'on')">On</button>
+            <button onclick="toggleSubDevice(${i}, 'Camera', 'off')">Off</button>
+          </div>
+          <div class="sub-device">
+            <img src="/images/icon-light.png" alt="Light Icon">
+            <div class="sub-device-text">Light</div>
+            <button onclick="toggleSubDevice(${i}, 'Light', 'on')">On</button>
+            <button onclick="toggleSubDevice(${i}, 'Light', 'off')">Off</button>
+          </div>
+          <div class="sub-device">
+            <img src="/images/icon-led.png" alt="LED Icon">
+            <div class="sub-device-text">LED</div>
+            <button onclick="toggleSubDevice(${i}, 'LED', 'on')">On</button>
+            <button onclick="toggleSubDevice(${i}, 'LED', 'off')">Off</button>
+          </div>
+        </div>
+      `;
+      seatContainer.appendChild(seatDiv);
+    }
+
+    function activateSeat(seatNumber) {
+      const subDevices = document.getElementById(`subDevices${seatNumber}`);
+      subDevices.style.display = subDevices.style.display === 'none' || !subDevices.style.display ? 'block' : 'none';
+      feedbackContent.innerHTML = `Seat ${seatNumber} is now active.<br>
+        <strong>Camera:</strong> Adjusted<br>
+        <strong>Light:</strong> Good<br>
+        <strong>LED:</strong> Working`;
+
+      // 관리자 페이지로 좌석 활성화 상태 전송
+      fetch('/update-seat-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ seatNumber, status: 'active' }),
+      })
+      .then(response => {
+        if (!response.ok) throw new Error('Failed to update seat status');
+      })
+      .catch(error => console.error(error));
+    }
+
+    function toggleSubDevice(seatNumber, subDevice, action) {
+      alert(`Seat ${seatNumber} ${subDevice} is turned ${action}`);
+    }
+
+    function sendEmergencyAlert() {
+      alert("Emergency alert sent!");
+    }
+  </script>
+</body>
+</html>
