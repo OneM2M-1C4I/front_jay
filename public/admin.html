@@ -21,9 +21,9 @@
 
     .main-container {
       display: flex;
-      flex-wrap: wrap; /* 줄바꿈 허용 */
-      justify-content: space-evenly; /* 균등하게 배치 */
-      gap: 20px; /* 섹션 간 간격 */
+      flex-wrap: wrap;
+      justify-content: space-evenly;
+      gap: 20px;
       padding: 20px;
       box-sizing: border-box;
       width: 100%;
@@ -35,7 +35,6 @@
       flex-direction: column;
       align-items: center;
       width: 48%;
-      margin-bottom: 20px;
     }
 
     .seat-title {
@@ -91,13 +90,12 @@
       height: auto !important;
     }
 
-    /* 환경 정보 및 원격 장치 */
+    /* 장치 관리 */
     .device-container {
       display: flex;
       flex-direction: column;
       align-items: center;
       width: 48%;
-      margin-bottom: 20px;
     }
 
     .device-title {
@@ -160,8 +158,8 @@
       <div class="chart-title">Data of Posture</div>
       <canvas id="postureChart"></canvas>
       <div class="chart-buttons">
-        <button onclick="showPrevious()">&#8592;</button>
-        <button onclick="showNext()">&#8594;</button>
+        <button onclick="showPrevious()">⇦</button>
+        <button onclick="showNext()">⇨</button>
       </div>
     </div>
   </div>
@@ -170,49 +168,150 @@
     <!-- Now Environment Section -->
     <div class="device-container">
       <div class="device-title">Now Environment</div>
-      <div class="device-list">
-        <!-- Noise -->
-        <div class="device-item">
-          <img src="https://cdn-icons-png.flaticon.com/512/727/727240.png" alt="Noise" width="50">
-          <h3>Noise</h3>
-          <p>Value: <span id="noise-value">50 dBA</span></p>
-        </div>
-        <!-- Air Quality -->
-        <div class="device-item">
-          <img src="https://cdn-icons-png.flaticon.com/512/2917/2917995.png" alt="Air Quality" width="50">
-          <h3>Air Quality</h3>
-          <p>Value: <span id="air-quality-value">21 %</span></p>
-        </div>
-      </div>
+      <div class="device-list" id="environmentDevices"></div>
     </div>
   
     <!-- Remote Device Management Section -->
     <div class="device-container">
       <div class="device-title">Remote Device Management</div>
-      <div class="device-list">
-        <!-- Temperature -->
-        <div class="device-item">
-          <img src="https://cdn-icons-png.flaticon.com/512/1684/1684375.png" alt="Temperature" width="50">
-          <h3>Temperature</h3>
-          <p>Value: <span id="temperature-value">25 °C</span></p>
-          <input type="number" id="temperature-input" placeholder="Set value">
-          <button onclick="updateDevice('temperature')">Update</button>
-        </div>
-        <!-- Oxygen Level -->
-        <div class="device-item">
-          <img src="https://cdn-icons-png.flaticon.com/512/4005/4005809.png" alt="Oxygen Level" width="50">
-          <h3>Oxygen Level</h3>
-          <p>Value: <span id="oxygen-value">35 µg/m³</span></p>
-          <input type="number" id="oxygen-input" placeholder="Set value">
-          <button onclick="updateDevice('oxygen')">Update</button>
-        </div>
-      </div>
+      <div class="device-list" id="remoteDevices"></div>
     </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
-    // 좌석 상태 스크립트
+    const tinyIoT_API = "http://34.122.123.241:3000/tinyiot"; // TinyIoT 서버 주소
+    let requestNr = 0;
+
+    // 장치 생성 (AE 생성)
+    function createDevice(name, id, key) {
+      const myHeaders = new Headers();
+      myHeaders.append("X-M2M-RI", `req${requestNr}`);
+      myHeaders.append("X-M2M-Origin", `C${name}`);
+      myHeaders.append("Content-Type", "application/json;ty=2");
+      myHeaders.append("X-M2M-RVI", "2a");
+
+      const raw = JSON.stringify({
+        "m2m:ae": {
+          "rn": name,
+          "api": `N${id}`,
+          "lbl": [
+            key
+          ],
+          "srv": [
+            "3"
+          ],
+          "rr": true
+        }
+      });
+
+      const requestOptions = {
+        method: "POST",
+        headers: myHeaders,
+        body: raw,
+        redirect: "follow"
+      };
+
+      fetch(tinyIoT_API, requestOptions)
+        .then((response) => response.text())
+        .then((result) => console.log(result))
+        .catch((error) => console.error("Error creating device:", error));
+    }
+
+    // TinyIoT 연동 - 장치 데이터 가져오기
+    async function fetchDevices() {
+      try {
+        const myHeaders = new Headers();
+        myHeaders.append("X-M2M-RI", `req${requestNr}`);
+        myHeaders.append("X-M2M-Origin", "admin");
+        myHeaders.append("X-M2M-RVI", "3");
+        myHeaders.append("Accept", "application/json");
+
+        const requestOptions = {
+          method: "GET",
+          headers: myHeaders,
+        };
+
+        const response = await fetch(`${tinyIoT_API}`, requestOptions);
+        if (!response.ok) {
+          throw new Error("Network response was not ok");
+        }
+        const devices = await response.json();
+        console.log(devices); // 디버깅을 위해 응답 로그
+        if (!Array.isArray(devices)) {
+          throw new Error("Unexpected response format. Expected an array.");
+        }
+        renderEnvironmentDevices(devices);
+        renderRemoteDevices(devices);
+      } catch (error) {
+        console.error("Failed to fetch devices:", error);
+        alert("Failed to fetch devices. Check your connection.");
+      }
+    }
+
+    function renderEnvironmentDevices(devices) {
+      const environmentDevices = devices.filter(device => device.type === "environment");
+      const environmentList = document.getElementById("environmentDevices");
+      environmentList.innerHTML = "";
+
+      environmentDevices.forEach(device => {
+        const deviceItem = `
+          <div class="device-item">
+            <h3>${device.name}</h3>
+            <p>Value: <span id="${device.id}-value">${device.value}</span></p>
+          </div>
+        `;
+        environmentList.innerHTML += deviceItem;
+      });
+    }
+
+    function renderRemoteDevices(devices) {
+      const remoteDevices = devices.filter(device => device.type === "remote");
+      const remoteList = document.getElementById("remoteDevices");
+      remoteList.innerHTML = "";
+
+      remoteDevices.forEach(device => {
+        const deviceItem = `
+          <div class="device-item">
+            <h3>${device.name}</h3>
+            <p>Value: <span id="${device.id}-value">${device.value}</span></p>
+            <input type="number" id="${device.id}-input" placeholder="Set value">
+            <button onclick="updateDevice('${device.id}')">Update</button>
+          </div>
+        `;
+        remoteList.innerHTML += deviceItem;
+      });
+    }
+
+    async function updateDevice(deviceId) {
+      const inputElement = document.getElementById(`${deviceId}-input`);
+      const value = inputElement.value;
+
+      if (!value || isNaN(value)) {
+        alert("Please enter a valid value.");
+        return;
+      }
+
+      try {
+        const response = await fetch(`${tinyIoT_API}/devices/${deviceId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ value: Number(value) }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to update device");
+        }
+
+        document.getElementById(`${deviceId}-value`).textContent = value;
+        alert(`Device ${deviceId} updated to ${value}`);
+      } catch (error) {
+        console.error("Failed to update device:", error);
+        alert("Failed to update the device. Try again.");
+      }
+    }
+
+    // 좌석 상태 관리 및 자세 데이터 초기 렌더링
     const seatGrid = document.getElementById('seatGrid');
     const seatCount = 21;
     const seatStates = Array(seatCount).fill(false);
@@ -227,7 +326,7 @@
       });
     }
 
-    // 자세 데이터 스크립트
+    // 자세 데이터 관리
     const postureChartCtx = document.getElementById('postureChart').getContext('2d');
     let currentChartIndex = 0;
 
@@ -275,20 +374,7 @@
 
     renderSeatGrid();
     updatePostureChart();
-
-    // 장치 관리 스크립트
-    async function updateDevice(deviceId) {
-      const inputElement = document.getElementById(`${deviceId}-input`);
-      const value = inputElement.value;
-
-      if (!value || isNaN(value)) {
-        alert("Please enter a valid value.");
-        return;
-      }
-
-      document.getElementById(`${deviceId}-value`).textContent = value;
-      alert(`Device ${deviceId} updated to ${value}`);
-    }
+    fetchDevices(); // 초기 장치 데이터 로드
   </script>
 </body>
 </html>

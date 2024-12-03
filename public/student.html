@@ -194,28 +194,119 @@
     <script>
 
       let tinyIoT_API = "http://34.122.123.241:3000/TinyIoT";
+      let requestNr = 0;
 
-      const myHeaders = new Headers();
-      myHeaders.append("Accept", "application/vnd.onem2m-res+json;ty=2");
-      myHeaders.append("X-M2M-RI", "create_ae");
-      myHeaders.append("X-M2M-origin", "CAdmin");
-      myHeaders.append("Content-Type", "application/json;ty=2");
-      myHeaders.append("X-M2M-RVI", "2a");
+      function create_ae(name, id, key) {
+        const myHeaders = new Headers();
+        myHeaders.append("X-M2M-RI", `req${requestNr}`,);
+        myHeaders.append("X-M2M-origin", `C${name}`);
+        myHeaders.append("Content-Type", "application/json;ty=2");
+        myHeaders.append("X-M2M-RVI", "2a");
 
-      const raw = "{\n    \"m2m:ae\": {\n        \"rn\": \"myAE\",\n        \"api\": \"Nmyapp3\",\n        \"lbl\": [\n            \"key1\",\n            \"key2\"\n        ],\n        \"srv\": [\n            \"3\"\n        ],\n        \"rr\": true\n    }\n}\n\n";
+        const raw = `{
+          "m2m:ae": {
+            "rn": "${name}",
+            "api": "N${id}",
+            "lbl": [
+              "${key}"
+            ],
+            "srv": [
+              "3"
+            ],
+            "rr": true
+          }
+        }`;
 
-      const requestOptions = {
-        method: "POST",
-        headers: myHeaders,
-        body: raw,
-        redirect: "follow"
-      };
+        const requestOptions = {
+          method: "POST",
+          headers: myHeaders,
+          body: raw,
+          redirect: "follow"
+        };
 
-      fetch("http://34.122.123.241:3000/TinyIoT", requestOptions)
-        .then((response) => response.text())
-        .then((result) => console.log(result))
-        .catch((error) => console.error(error));
+        fetch(tinyIoT_API, requestOptions)
+          .then((response) => response.text())
+          .then((result) => console.log(result))
+          .catch((error) => console.error(error));
+      }
 
+      function delete_ae(name) {
+        const myHeaders = new Headers();
+        myHeaders.append("X-M2M-RI", `req${requestNr}`,);
+        myHeaders.append("X-M2M-origin", `C${name}`);
+        myHeaders.append("Content-Type", "application/json;ty=2");
+        myHeaders.append("X-M2M-RVI", "2a");
+
+        const raw = "";
+
+        const requestOptions = {
+          method: "DELETE",
+          headers: myHeaders,
+          body: raw,
+          redirect: "follow"
+        };
+
+        fetch(`${tinyIoT_API}/${name}`, requestOptions)
+          .then((response) => response.text())
+          .then((result) => console.log(result))
+          .catch((error) => console.error(error));
+      }
+
+      async function find_ae(name) {
+        const myHeaders = new Headers();
+        myHeaders.append("X-M2M-RI", `req${requestNr}`,);
+        myHeaders.append("X-M2M-origin", `C${name}`);
+        myHeaders.append("Content-Type", "application/json;ty=2");
+        myHeaders.append("X-M2M-RVI", "2a");
+
+        const requestOptions = {
+          method: "GET",
+          headers: myHeaders,
+          redirect: "follow"
+        };
+
+        try {
+          const response = await fetch(`${tinyIoT_API}/${name}`, requestOptions);
+          if (!response.ok) {
+            console.error(`HTTP error! status: ${response.status}`);
+            return null; // 요청 실패 시 null 반환
+          }
+          const result = await response.text();
+          return result; // 요청 성공 시 결과 반환
+        } catch (error) {
+          return null; // 에러 발생 시 null 반환
+        }
+      }
+
+      // 한 자리에 대한 AE 생성
+      function create_seat(number) {
+        create_ae(`SeatLight${number}`, "l"+number, "light");
+        create_ae(`SeatCamera${number}`, "c"+number, "camera");
+        create_ae(`SeatLED${number}`, "le"+number, "led");
+      }
+      
+      // 한 자리에 대한 AE 삭제
+      function delete_seat(number) {
+        delete_ae(`SeatLight${number}`);
+        delete_ae(`SeatCamera${number}`);
+        delete_ae(`SeatLED${number}`);
+      }
+
+      // 모든 자리에 대한 AE 찾기 있는지 확인 (light로 만듬)
+      async function find_all_seat_ae() {
+        let arr = {};
+        for (let i = 1; i <= 21; i++) {
+          let res = await find_ae(`SeatLight${i}`);
+          if(res != null) {
+            console.log(`SeatLight${i} AE가 존재합니다.`);
+            arr[`SeatLight${i}`] = res;
+            console.log(res);
+          } else {
+            console.log(`SeatLight${i} AE가 존재하지 않습니다.`);
+          }
+        }
+        return arr;
+      }
 
 
 
