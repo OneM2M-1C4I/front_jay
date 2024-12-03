@@ -1,144 +1,111 @@
-var express = require("express");
-var request = require("request");
-var hashmap = require("hashmap");
-var config = require("config");
-var path = require("path");
-var bodyParser = require("body-parser");
+const express = require("express");
+const request = require("request");
+const hashmap = require("hashmap");
+const config = require("config");
+const path = require("path");
+const bodyParser = require("body-parser");
 
-var app = express();
-var map = new hashmap();
+const app = express();
+const map = new hashmap();
 
 app.use(bodyParser.json({ type: ["application/*+json", "application/json"] }));
 app.use(express.static(__dirname + "/public")); // Serve static files
 
-var cseURL = "http://" + config.cse.ip + ":" + config.cse.port;
-var cseRelease = config.cse.release;
-var templates = config.templates;
-var acpi = {};
-var requestNr = 0;
+const cseURL = "http://" + config.cse.ip + ":" + config.cse.port;
+const cseRelease = config.cse.release;
+const templates = config.templates;
+const activeAEs = {}; // 활성화된 AE 상태 저장
+let requestNr = 0; // 요청 번호 카운터
 
 // Serve the main page
-app.get("/", function (req, res) {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
+app.get("/", (req, res) =>
+  res.sendFile(path.join(__dirname, "public/index.html"))
+);
 
 // Serve the Student page
-app.get("/student", function (req, res) {
-  res.sendFile(path.join(__dirname, "public", "student.html"));
-});
+app.get("/student", (req, res) =>
+  res.sendFile(path.join(__dirname, "public/student.html"))
+);
 
 // Serve the Admin page
-app.get("/admin", function (req, res) {
-  res.sendFile(path.join(__dirname, "public", "admin.html"));
-});
+app.get("/admin", (req, res) =>
+  res.sendFile(path.join(__dirname, "public/admin.html"))
+);
 
 // Templates route
-app.get("/templates", function (req, res) {
-  res.send(templates);
+app.get("/templates", (req, res) => res.send(templates));
+
+// AE 생성 시 활성화 상태 업데이트
+function createAE(name) {
+  console.log("\n[REQUEST] Creating AE:", name);
+  activeAEs[name] = { activated: true, devices: {} }; // 활성화된 AE 상태와 하위 디바이스 추가
+}
+
+// 활성화된 AE 목록 API
+app.get("/admin/aes", (req, res) => {
+  res.status(200).json(activeAEs); // 활성화된 AE 목록 반환
 });
 
-// Get all devices
-app.get("/devices", function (req, res) {
-  var devices = [];
-  map.forEach(function (value, key) {
-    devices.push({
-      typeIndex: value.typeIndex,
-      name: key,
-      type: value.type,
-      data: value.data,
-      icon: value.icon,
-      unit: value.unit,
-      stream: value.stream,
-    });
-  });
-  res.send(devices);
-});
-
-// Delete a device
-app.delete("/devices/:name", function (req, res) {
-  map.remove(req.params.name);
-  deleteAE(req.params.name);
-
-  res.sendStatus(204);
-});
-
-// Create a seat and its sub-devices
-app.post("/devices/:name", function (req, res) {
+// 좌석 활성화 상태 업데이트 API
+app.post("/devices/:name", (req, res) => {
   const seatName = req.params.name;
   const type = req.query.type;
 
   if (type === "seat") {
-    // Create seat
-    createDevice(0, seatName);
-
-    // Create sub-devices (Camera, Light, LED)
-    const devices = ["Camera", "Light", "LED"];
-    devices.forEach((deviceType, index) => {
-      const deviceName = `${seatName}_${deviceType}`;
-      createDevice(index + 1, deviceName);
-    });
-
-    console.log(`Seat ${seatName} and sub-devices created.`);
-    res.status(201).send(`Seat ${seatName} and sub-devices created.`);
+    createAE(seatName); // 좌석을 활성화하고 AE 생성
+    res.status(201).send(`Seat ${seatName} activated.`);
   } else {
     res.status(400).send("Invalid request type.");
   }
 });
 
-// Update sub-device status (Camera, Light, LED)
-app.post("/devices/:name/:subDevice", function (req, res) {
-  const deviceName = req.params.name; // e.g., Seat1
-  const subDevice = req.params.subDevice; // e.g., Camera, Light, LED
-  const action = req.query.action; // e.g., "on" or "off"
+// 좌석 비활성화 상태 업데이트 API (좌석 삭제로 변경)
+app.post("/devices/:name/deactivate", (req, res) => {
+  const seatName = req.params.name;
 
-  // Check if the device exists
-  if (!map.has(deviceName)) {
-    return res.status(404).send("Device not found");
+  // 좌석이 존재하지 않으면 404 에러 반환
+  if (!activeAEs[seatName]) {
+    return res.status(404).send("Seat not found");
   }
 
-  // Sub-device name
-  const subDeviceName = `${deviceName}_${subDevice}`;
-
-  // Update sub-device status
-  if (map.has(subDeviceName)) {
-    const device = map.get(subDeviceName);
-
-    // Update the device data to reflect the action
-    device.data = action === "on" ? 1 : 0;
-    map.set(subDeviceName, device);
-
-    console.log(`${subDeviceName} is now ${action}`);
-    return res.status(200).send(`${subDeviceName} is now ${action}`);
-  } else {
-    return res.status(404).send("Sub-device not found");
-  }
+  // 좌석 비활성화 및 하위 디바이스 비활성화
+  deleteAE(seatName); // 좌석 삭제 (AE 제거)
+  res.status(200).send(`${seatName} deactivated and deleted.`);
 });
 
-// Get sub-device status
-app.get("/devices/:name/:subDevice", function (req, res) {
-  const deviceName = req.params.name;
-  const subDevice = req.params.subDevice;
-
-  // Sub-device name
-  const subDeviceName = `${deviceName}_${subDevice}`;
-
-  // Check if the sub-device exists
-  if (map.has(subDeviceName)) {
-    const device = map.get(subDeviceName);
-    return res.status(200).json({
-      name: subDeviceName,
-      data: device.data,
-      type: device.type,
-    });
-  } else {
-    return res.status(404).send("Sub-device not found");
+// 좌석 삭제 (deleteAE)
+function deleteAE(name) {
+  // 좌석 삭제 및 하위 디바이스 제거
+  if (activeAEs[name]) {
+    delete activeAEs[name]; // 좌석 및 하위 디바이스 제거
+    console.log(`AE for seat ${name} and its sub-devices deleted.`);
   }
+}
+
+// 하위 디바이스 상태 업데이트 API
+app.post("/devices/:name/:subDevice", (req, res) => {
+  const seatName = req.params.name;
+  const subDevice = req.params.subDevice;
+  const action = req.query.action;
+
+  // 좌석이 존재하지 않으면 404 에러 반환
+  if (!activeAEs[seatName]) {
+    return res.status(404).send("Seat not found");
+  }
+
+  // 하위 디바이스의 상태를 설정
+  if (activeAEs[seatName].devices[subDevice] === undefined) {
+    activeAEs[seatName].devices[subDevice] = {}; // 처음에는 빈 객체로 초기화
+  }
+
+  // 하위 디바이스의 상태를 변경
+  activeAEs[seatName].devices[subDevice] = action === "on" ? true : false;
+
+  console.log(`Sub-device ${subDevice} on ${seatName} is now ${action}`);
+  res.status(200).send(`${subDevice} on ${seatName} is now ${action}`);
 });
 
 // Start server
-app.listen(config.app.port || 8369, function () {
+app.listen(config.app.port || 8369, () => {
   console.log("Simulator API listening on port " + (config.app.port || 8369));
 });
-
-// Helper functions for creating devices, updating devices, etc.
-// (Keep all existing helper functions like createDevice, createAE, deleteAE, etc. as they were in your original code)
