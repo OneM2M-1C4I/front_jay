@@ -106,6 +106,8 @@ function createAE(name, typeIndex) {
   });
 }
 
+
+
 // Delete Application Entity (AE)
 function deleteAE(name) {
   const options = {

@@ -13,7 +13,7 @@
     }
 
     h1 {
-      margin: 20px 0;
+      margin: 10px 0;
       font-size: 2em;
       color: black;
       text-align: center;
@@ -21,9 +21,8 @@
 
     .main-container {
       display: flex;
-      flex-wrap: wrap; /* 줄바꿈 허용 */
-      justify-content: space-evenly; /* 균등하게 배치 */
-      gap: 20px; /* 섹션 간 간격 */
+      flex-wrap: wrap;
+      justify-content: space-between;
       padding: 20px;
       box-sizing: border-box;
       width: 100%;
@@ -166,50 +165,6 @@
     </div>
   </div>
 
-  <div class="main-container">
-    <!-- Now Environment Section -->
-    <div class="device-container">
-      <div class="device-title">Now Environment</div>
-      <div class="device-list">
-        <!-- Noise -->
-        <div class="device-item">
-          <img src="https://cdn-icons-png.flaticon.com/512/727/727240.png" alt="Noise" width="50">
-          <h3>Noise</h3>
-          <p>Value: <span id="noise-value">50 dBA</span></p>
-        </div>
-        <!-- Air Quality -->
-        <div class="device-item">
-          <img src="https://cdn-icons-png.flaticon.com/512/2917/2917995.png" alt="Air Quality" width="50">
-          <h3>Air Quality</h3>
-          <p>Value: <span id="air-quality-value">21 %</span></p>
-        </div>
-      </div>
-    </div>
-  
-    <!-- Remote Device Management Section -->
-    <div class="device-container">
-      <div class="device-title">Remote Device Management</div>
-      <div class="device-list">
-        <!-- Temperature -->
-        <div class="device-item">
-          <img src="https://cdn-icons-png.flaticon.com/512/1684/1684375.png" alt="Temperature" width="50">
-          <h3>Temperature</h3>
-          <p>Value: <span id="temperature-value">25 °C</span></p>
-          <input type="number" id="temperature-input" placeholder="Set value">
-          <button onclick="updateDevice('temperature')">Update</button>
-        </div>
-        <!-- Oxygen Level -->
-        <div class="device-item">
-          <img src="https://cdn-icons-png.flaticon.com/512/4005/4005809.png" alt="Oxygen Level" width="50">
-          <h3>Oxygen Level</h3>
-          <p>Value: <span id="oxygen-value">35 µg/m³</span></p>
-          <input type="number" id="oxygen-input" placeholder="Set value">
-          <button onclick="updateDevice('oxygen')">Update</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
     // 좌석 상태 스크립트
@@ -275,20 +230,6 @@
 
     renderSeatGrid();
     updatePostureChart();
-
-    // 장치 관리 스크립트
-    async function updateDevice(deviceId) {
-      const inputElement = document.getElementById(`${deviceId}-input`);
-      const value = inputElement.value;
-
-      if (!value || isNaN(value)) {
-        alert("Please enter a valid value.");
-        return;
-      }
-
-      document.getElementById(`${deviceId}-value`).textContent = value;
-      alert(`Device ${deviceId} updated to ${value}`);
-    }
   </script>
 </body>
 </html>

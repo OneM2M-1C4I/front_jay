@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-	<meta charset="UTF-8" />
-	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-	<title>Student Page</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Student Page</title>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -86,44 +87,6 @@
         background-color: darkblue;
       }
 
-      .sub-devices {
-        margin-top: 10px;
-        width: 100%;
-        text-align: center;
-        display: none;
-      }
-
-      .sub-device {
-        margin: 15px 0;
-        text-align: center;
-      }
-
-      .sub-device img {
-        width: 30px;
-        height: 30px;
-        margin-bottom: 5px;
-      }
-
-      .sub-device-text {
-        font-size: 14px;
-        font-weight: bold;
-        margin-bottom: 5px;
-      }
-
-      .sub-device button {
-        margin: 5px;
-        padding: 5px 10px;
-        background-color: blue;
-        color: white;
-        border: none;
-        border-radius: 5px;
-        cursor: pointer;
-      }
-
-      .sub-device button:hover {
-        background-color: darkblue;
-      }
-
       .feedback-container {
         width: 33%;
         background: white;
@@ -156,17 +119,6 @@
         overflow-y: auto;
       }
 
-      .camera-button {
-        background-color: blue;
-        color: white;
-        border: none;
-        padding: 10px 20px;
-        border-radius: 5px;
-        font-size: 16px;
-        cursor: pointer;
-        margin-bottom: 10px;
-      }
-
       .emergency-button {
         background-color: red;
         color: white;
@@ -184,199 +136,299 @@
       .emergency-button:hover {
         background-color: darkred;
       }
-  </style>
-</head>
-<body>
-  <h1>Student Page</h1>
-  
-  <div class="main-container">
-    <div class="seat-container">
-      <div class="choose-seat">Choose your seat</div>
-      <div class="grid-container" id="seatContainer">
-        <!-- JavaScript로 좌석 생성 -->
-      </div>
-    </div>
 
-    <div class="feedback-container">
-      <div class="feedback-title">User Action Test</div>
-      <div class="feedback-content">
-		<h3>Selected User : <span id="selectedUser">None</span></h3>
-		<textarea id="feedbackContent" style="width: 100%; height: 200px;"></textarea>
+      .device-control {
+        margin-top: 20px;
+      }
 
-        <h3>Pose Camera</h3>
-        <div style="text-align: center;">
-          <div id="webcam-container"></div>
-          <button class="camera-button" type="button" onclick="init()">Camera on</button>
+      .device-control button {
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        margin: 5px;
+        cursor: pointer;
+        font-size: 14px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+
+      .device-control button:hover {
+        background-color: #45a049;
+      }
+
+      .device-control button:active {
+        transform: translateY(2px);
+      }
+
+      .device-control .off-btn {
+        background-color: #f44336;
+      }
+
+      .device-control .off-btn:hover {
+        background-color: #e53935;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Student Page</h1>
+    <div class="main-container">
+      <div class="seat-container">
+        <div class="choose-seat">Choose your seat</div>
+        <div class="grid-container" id="seatContainer">
+          <!-- JavaScript로 좌석 생성 -->
         </div>
-        <h3>Pose Alert</h3>
-        <div id="label-container"></div>
-        <div id="feedback">LED Lamp: <span id="led-indicator" class="led-indicator"></span></div>
-        
-        <h3>Light</h3>
-        <div id="light-status">Light: <span id="light-indicator" class="led-indicator"></span></div>
+      </div>
 
-        <h3>Emergency Button</h3>
-        <button class="emergency-button" onclick="sendEmergencyAlert()">
-          <img src="/images/icon-warning.png" alt="Emergency Icon" style="width: 20px; height: 20px;">
-          Emergency button
-        </button>
+      <div class="feedback-container">
+        <div class="feedback-title">Feedback for your posture</div>
+        <h3>Selected User : <span id="selectedUser">None</span></h3>
+        <textarea id="logger" style="width: 100%; height: 150px;"></textarea>
+        <div class="feedback-content" id="feedbackContent">
+          <!-- 피드백 내용 표시 -->
+        </div>
       </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
-  
-
     <script>
-		const seatContainer = document.getElementById("seatContainer");
-		const feedbackContent = document.getElementById("feedbackContent");
-		const seats = 21;
 
-		let selectedUser = document.getElementById('selectedUser');
-		let model, webcam, labelContainer, maxPredictions;
+      let tinyIoT_API = "http://34.122.123.241:3000/TinyIoT";
 
-		async function init() {
-			const modelURL = URL + "model.json";
-			const metadataURL = URL + "metadata.json";
+      const myHeaders = new Headers();
+      myHeaders.append("Accept", "application/vnd.onem2m-res+json;ty=2");
+      myHeaders.append("X-M2M-RI", "create_ae");
+      myHeaders.append("X-M2M-origin", "CAdmin");
+      myHeaders.append("Content-Type", "application/json;ty=2");
+      myHeaders.append("X-M2M-RVI", "2a");
 
-			model = await tmImage.load(modelURL, metadataURL);
-			maxPredictions = model.getTotalClasses();
+      const raw = "{\n    \"m2m:ae\": {\n        \"rn\": \"myAE\",\n        \"api\": \"Nmyapp3\",\n        \"lbl\": [\n            \"key1\",\n            \"key2\"\n        ],\n        \"srv\": [\n            \"3\"\n        ],\n        \"rr\": true\n    }\n}\n\n";
 
-			const flip = true;
-			webcam = new tmImage.Webcam(200, 200, flip);
-			await webcam.setup();
-			await webcam.play();
-			window.requestAnimationFrame(loop);
+      const requestOptions = {
+        method: "POST",
+        headers: myHeaders,
+        body: raw,
+        redirect: "follow"
+      };
 
-			document.getElementById("webcam-container").appendChild(webcam.canvas);
-			labelContainer = document.getElementById("label-container");
-			for (let i = 0; i < maxPredictions; i++) {
-				labelContainer.appendChild(document.createElement("div"));
-			}
-		}
+      fetch("http://34.122.123.241:3000/TinyIoT", requestOptions)
+        .then((response) => response.text())
+        .then((result) => console.log(result))
+        .catch((error) => console.error(error));
 
-		async function loop() {
-			webcam.update();
-			await predict();
-			window.requestAnimationFrame(loop);
-		}
 
-		async function predict() {
-			const prediction = await model.predict(webcam.canvas);
-			let label = ["올바른 자세", "나쁜 자세"];
-			for (let i = 0; i < maxPredictions; i++) {
-				const classPrediction = label[i] + ": " + prediction[i].probability.toFixed(2);
-				labelContainer.childNodes[i].innerHTML = classPrediction;
-				if (i == 0 && prediction[i].probability.toFixed(2) < 0.5) {
-					document.getElementById("led-indicator").innerHTML = "Off";
-				} else if (i == 1 && prediction[i].probability.toFixed(2) > 0.5) {
-					document.getElementById("led-indicator").innerHTML = "On";
-				}
-			}
-		}
 
-		for (let i = 1; i <= seats; i++) {
-			const seatDiv = document.createElement("div");
-			seatDiv.className = "seat-card";
-			seatDiv.innerHTML = ` 
-			<img src="/images/icon-seat.png" alt="Seat Icon">
-			<p>Seat ${i}</p>
-			<button onclick="activateSeat(${i})">Activate Seat</button>
-			<button onclick="deactivateSeat(${i})">Deactivate Seat</button> <!-- 비활성화 버튼 추가 -->
-			<div class="sub-devices" id="subDevices${i}">
-			<div class="sub-device">
-				<img src="/images/icon-camera.png" alt="Camera Icon">
-				<div class="sub-device-text">Camera</div>
-				<button onclick="toggleSubDevice(${i}, 'Camera', 'on')">On</button>
-				<button onclick="toggleSubDevice(${i}, 'Camera', 'off')">Off</button>
-			</div>
-			<div class="sub-device">
-				<img src="/images/icon-light.png" alt="Light Icon">
-				<div class="sub-device-text">Light</div>
-				<button onclick="toggleSubDevice(${i}, 'Light', 'on')">On</button>
-				<button onclick="toggleSubDevice(${i}, 'Light', 'off')">Off</button>
-			</div>
-			<div class="sub-device">
-				<img src="/images/icon-led.png" alt="LED Icon">
-				<div class="sub-device-text">LED</div>
-				<button onclick="toggleSubDevice(${i}, 'LED', 'on')">On</button>
-				<button onclick="toggleSubDevice(${i}, 'LED', 'off')">Off</button>
-			</div>
-			</div>`;
-			seatContainer.appendChild(seatDiv);
-		}
 
-		// 좌석 활성화 및 하위 디바이스 표시
-		function activateSeat(seatNumber) {
 
-			selectedUser.innerText = `Seat ${seatNumber}`;
 
-			const subDevices = document.getElementById(`subDevices${seatNumber}`);
-			subDevices.style.display =
-			subDevices.style.display === "none" || !subDevices.style.display
-				? "block"
-				: "none";
 
-			// 피드백 내용 업데이트
-			feedbackContent.innerHTML += `Seat ${seatNumber} AE세트 생성 요청\n`;
 
-			// 서버로 좌석 활성화 상태 전송
-			fetch(`/devices/Seat${seatNumber}?type=seat`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-			})
-			.then((response) => {
-				if (!response.ok) throw new Error("Failed to update seat status");
-				console.log(`Seat ${seatNumber} AE created successfully.`);
-				feedbackContent.innerHTML += `Seat ${seatNumber} AE세트 생성 성공\n`;
-			})
-			.catch((error) => {
-				console.error(error)
-				feedbackContent.innerHTML += `Seat ${seatNumber} AE세트 생성 실패\n`;
-			});
-		}
 
-		// 좌석 비활성화 및 상태 갱신
-		function deactivateSeat(seatNumber) {
-			const subDevices = document.getElementById(`subDevices${seatNumber}`);
-			subDevices.style.display = "none"; // 하위 디바이스 숨기기
 
-			feedbackContent.innerHTML += `Seat ${seatNumber} AE세트 삭제 요청\n`;
-			// 서버로 좌석 비활성화 상태 전송 (좌석 삭제와 함께)
-			fetch(`/devices/Seat${seatNumber}/deactivate`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-			})
-			.then((response) => {
-				if (!response.ok)
-				throw new Error("Failed to deactivate and delete seat");
-				console.log(
-					`Seat ${seatNumber} deactivated and deleted successfully.`
-				);
-				feedbackContent.innerHTML += `Seat ${seatNumber} AE세트 삭제 성공\n`;
-			})
-			.catch((error) => {
-				console.error(error)
-				feedbackContent.innerHTML += `Seat ${seatNumber} AE세트 삭제 실패\n`;
-			});
-		}
 
-		// 하위 디바이스 활성화 및 피드백 업데이트
-		function toggleSubDevice(seatNumber, subDevice, action) {
-			fetch(`/devices/Seat${seatNumber}/${subDevice}?action=${action}`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-			}).then((response) => {
-				if (!response.ok)
-				throw new Error(`Failed to turn ${action} ${subDevice}`);
 
-				alert(`Seat ${seatNumber} ${subDevice} is turned ${action}`);
-			}).catch((error) => console.error(error));
-		}
 
-		// 응급 알림 보내기
-		function sendEmergencyAlert() {
-			alert("Emergency alert sent!");
-		}
+
+
+
+
+
+      const seatContainer = document.getElementById("seatContainer");
+      const feedbackContent = document.getElementById("feedbackContent");
+      const seats = 21;
+
+      let selectedUser = document.getElementById('selectedUser');
+      let seatNumber;
+      let logger = document.getElementById('logger');
+
+      for (let i = 1; i <= seats; i++) {
+        const seatDiv = document.createElement("div");
+        seatDiv.className = "seat-card";
+        seatDiv.innerHTML = `
+          <img src="/images/icon-seat.png" alt="Seat Icon">
+          <p>Seat ${i}</p>
+          <button onclick="activateSeat(${i})">Activate Seat</button>
+          <button onclick="deactivateSeat(${i})">Deactivate Seat</button> <!-- 비활성화 버튼 추가 -->
+        `;
+        seatContainer.appendChild(seatDiv);
+      }
+
+      // 좌석 활성화 및 하위 디바이스 표시
+      function activateSeat(seatNumber) {
+        seatNumber = seatNumber;
+        selectedUser.innerHTML = `Seat ${seatNumber}`;
+        // 서버로 좌석 활성화 상태 전송
+        logger.innerHTML += `Seat ${seatNumber} AE 추가 요청.\n`;
+        fetch(`/devices/Seat${seatNumber}?type=seat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        })
+        .then((response) => {
+          if (!response.ok) throw new Error("Failed to update seat status");
+          console.log(`Seat ${seatNumber} AE created successfully.`);
+          logger.innerHTML += `Seat ${seatNumber} AE 추가 성공.\n`;
+        })
+        .catch((error) => {
+          console.error(error)
+          logger.innerHTML += `Seat ${seatNumber} AE 추가 실패.\n`;
+        });
+
+        // 피드백 내용 업데이트
+        feedbackContent.innerHTML = `
+          <h3>Pose Camera</h3>
+          <div style="text-align: center;">
+            <div id="webcam-container"></div>
+          </div>
+
+          <h3>Pose Alert</h3>
+          <div id="label-container"></div>
+          <div id="feedback">LED Lamp: <span id="led-indicator">Off</span></div>
+
+          <h3>Light</h3>
+          <div id="light-status">Light: <span id="light-indicator">Off</span></div>
+
+          <h3>Emergency Button</h3>
+          <button class="emergency-button" onclick="sendEmergencyAlert()">Emergency button</button>
+
+          <!-- 각 기능을 제어할 수 있는 버튼 추가 -->
+          <div class="device-control">
+            <button onclick="toggleSubDevice(${seatNumber}, 'Camera', 'on')">Turn Camera On</button>
+            <button onclick="toggleSubDevice(${seatNumber}, 'Camera', 'off')" class="off-btn">Turn Camera Off</button>
+          </div>
+          <div class="device-control">
+            <button onclick="toggleSubDevice(${seatNumber}, 'Light', 'on')">Turn Light On</button>
+            <button onclick="toggleSubDevice(${seatNumber}, 'Light', 'off')" class="off-btn">Turn Light Off</button>
+          </div>
+        `;
+      }
+
+      // 좌석 비활성화 및 상태 갱신
+      function deactivateSeat(seatNumber) {
+        selectedUser.innerHTML = `None`;
+        seatNumber = "None";
+        feedbackContent.innerHTML = ``; // 피드백 내용 초기화
+        fetch(`/devices/Seat${seatNumber}/deactivate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        })
+        .then((response) => {
+          if (!response.ok)
+            throw new Error("Failed to deactivate and delete seat");
+          console.log(
+            `Seat ${seatNumber} deactivated and deleted successfully.`
+          );
+        })
+        .catch((error) => console.error(error));
+      }
+
+      // 하위 디바이스 활성화 및 피드백 업데이트
+      function toggleSubDevice(seatNumber, subDevice, action) {
+        // 만약 카메라를 켜는 경우, 먼저 init()을 실행
+        if (subDevice === "Camera" && action === "on") {
+          init(); // 카메라 초기화 함수 실행
+        }
+
+        // 서버로 디바이스 상태를 업데이트
+        fetch(`/devices/Seat${seatNumber}/${subDevice}?action=${action}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        })
+        .then((response) => {
+          if (!response.ok)
+            throw new Error(`Failed to turn ${action} ${subDevice}`);
+
+          // 피드백 내용 업데이트
+          let status = action === "on" ? "On" : "Off";
+
+          // 피드백 내용 업데이트 (Camera, Light, LED  등)
+          feedbackContent.innerHTML = `
+            <h3>Pose Camera</h3>
+            <div style="text-align: center;">
+              <div id="webcam-container">${
+                status === "On" ? "<video autoplay></video>" : ""
+              }</div>
+            </div>
+            <h3>Pose Alert</h3>
+            <div id="label-container"></div>
+            <div id="feedback">LED Lamp: <span id="led-indicator">${
+              subDevice === "LED" ? status : "Off"
+            }</span></div>
+            <h3>Light</h3>
+            <div id="light-status">Light: <span id="light-indicator">${
+              subDevice === "Light" ? status : "Off"
+            }</span></div>
+            <h3>Emergency Button</h3>
+            <button class="emergency-button" onclick="sendEmergencyAlert()">Emergency button</button>
+
+            <!-- 각 기능을 제어할 수 있는 버튼 추가 -->
+            <div class="device-control">
+              <button onclick="toggleSubDevice(${seatNumber}, 'Camera', 'on')">Turn Camera On</button>
+              <button onclick="toggleSubDevice(${seatNumber}, 'Camera', 'off')" class="off-btn">Turn Camera Off</button>
+            </div>
+            <div class="device-control">
+              <button onclick="toggleSubDevice(${seatNumber}, 'Light', 'on')">Turn Light On</button>
+              <button onclick="toggleSubDevice(${seatNumber}, 'Light', 'off')" class="off-btn">Turn Light Off</button>
+            </div>
+          `;
+        })
+        .catch((error) => console.error(error));
+      }
+
+      // 응급 알림 보내기
+      function sendEmergencyAlert() {
+        alert("Emergency alert sent!");
+      }
+
+      // 카메라 기능 초기화 (Webcam 관련 코드 포함)
+      const URL = "./my_model/";
+
+      let model, webcam, labelContainer, maxPredictions;
+
+      async function init() {
+        const modelURL = URL + "model.json";
+        const metadataURL = URL + "metadata.json";
+
+        model = await tmImage.load(modelURL, metadataURL);
+        maxPredictions = model.getTotalClasses();
+
+        const flip = true;
+        webcam = new tmImage.Webcam(200, 200, flip);
+        await webcam.setup();
+        await webcam.play();
+        window.requestAnimationFrame(loop);
+
+        document.getElementById("webcam-container").appendChild(webcam.canvas);
+        labelContainer = document.getElementById("label-container");
+        for (let i = 0; i < maxPredictions; i++) {
+          labelContainer.appendChild(document.createElement("div"));
+        }
+      }
+
+      async function loop() {
+        webcam.update();
+        await predict();
+        window.requestAnimationFrame(loop);
+      }
+
+      async function predict() {
+        const prediction = await model.predict(webcam.canvas);
+        let label = ["올바른 자세", "나쁜 자세"];
+
+        for (let i = 0; i < maxPredictions; i++) {
+          const classPrediction = label[i] + ": " + prediction[i].probability.toFixed(2);
+          labelContainer.childNodes[i].innerHTML = classPrediction;
+
+          // LED 상태 변경 로직
+          if (i == 0 && prediction[i].probability.toFixed(2) < 0.5) {
+            document.getElementById("led-indicator").innerHTML = "Off";
+            toggleSubDevice(seatNumber, "LED", "off"); // LED를 off로 변경
+          } else if (i == 1 && prediction[i].probability.toFixed(2) > 0.5) {
+            document.getElementById("led-indicator").innerHTML = "On";
+            toggleSubDevice(seatNumber, "LED", "on"); // LED를 on으로 변경
+          }
+        }
+      }
+      
     </script>
   </body>
 </html>

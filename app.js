@@ -30,7 +30,7 @@ app.get("/student", function (req, res) {
   res.sendFile(path.join(__dirname + "/public/student.html"));
 });
 
-
+/* ################################# 비상버튼 ################################# */
 
 app.get("/templates", function (req, res) {
   res.send(templates);
