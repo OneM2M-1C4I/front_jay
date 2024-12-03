@@ -20,8 +20,17 @@ var acpi = {};
 var requestNr = 0;
 
 app.get("/", function (req, res) {
-  res.sendFile(path.join(__dirname + "/index.html"));
+  res.sendFile(path.join(__dirname + "/public/index.html"));
 });
+
+app.get("/admin", function (req, res) {
+  res.sendFile(path.join(__dirname + "/public/admin.html"));
+});
+app.get("/student", function (req, res) {
+  res.sendFile(path.join(__dirname + "/public/student.html"));
+});
+
+
 
 app.get("/templates", function (req, res) {
   res.send(templates);

@@ -156,10 +156,18 @@
       overflow-y: auto;
     }
 
+    .camera-button {
+      background-color: blue;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-bottom: 10px;
+    }
+
     .emergency-button {
-      position: fixed;
-      top: 20px;
-      right: 20px;
       background-color: red;
       color: white;
       border: none;
@@ -180,10 +188,7 @@
 </head>
 <body>
   <h1>Student Page</h1>
-  <button class="emergency-button" onclick="sendEmergencyAlert()">
-    <img src="/images/icon-warning.png" alt="Emergency Icon" style="width: 20px; height: 20px;">
-    Emergency button
-  </button>
+  
   <div class="main-container">
     <div class="seat-container">
       <div class="choose-seat">Choose your seat</div>
@@ -193,14 +198,77 @@
     </div>
 
     <div class="feedback-container">
-      <div class="feedback-title">Feedback for your posture</div>
+      <div class="feedback-title">User Action Test</div>
       <div class="feedback-content" id="feedbackContent">
-        <!-- 피드백 내용 표시 -->
+        <h3>Pose Camera</h3>
+        <div style="text-align: center;">
+          <div id="webcam-container"></div>
+          <button class="camera-button" type="button" onclick="init()">Camera on</button>
+        </div>
+
+        <h3>Pose Alert</h3>
+        <div id="label-container"></div>
+        <div id="feedback">LED Lamp: <span id="led-indicator" class="led-indicator"></span></div>
+        
+        <h3>Light</h3>
+        <div id="light-status">Light: <span id="light-indicator" class="led-indicator"></span></div>
+
+        <h3>Emergency Button</h3>
+        <button class="emergency-button" onclick="sendEmergencyAlert()">
+          <img src="/images/icon-warning.png" alt="Emergency Icon" style="width: 20px; height: 20px;">
+          Emergency button
+        </button>
       </div>
     </div>
   </div>
-
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
   <script>
+    const URL = "./my_model/";
+
+    let model, webcam, labelContainer, maxPredictions;
+
+    async function init() {
+        const modelURL = URL + "model.json";
+        const metadataURL = URL + "metadata.json";
+
+        model = await tmImage.load(modelURL, metadataURL);
+        maxPredictions = model.getTotalClasses();
+
+        const flip = true;
+        webcam = new tmImage.Webcam(200, 200, flip);
+        await webcam.setup();
+        await webcam.play();
+        window.requestAnimationFrame(loop);
+
+        document.getElementById("webcam-container").appendChild(webcam.canvas);
+        labelContainer = document.getElementById("label-container");
+        for (let i = 0; i < maxPredictions; i++) {
+            labelContainer.appendChild(document.createElement("div"));
+        }
+    }
+
+    async function loop() {
+        webcam.update();
+        await predict();
+        window.requestAnimationFrame(loop);
+    }
+
+    async function predict() {
+        const prediction = await model.predict(webcam.canvas);
+        let label = ["올바른 자세", "나쁜 자세"];
+        for (let i = 0; i < maxPredictions; i++) {
+            const classPrediction = label[i] + ": " + prediction[i].probability.toFixed(2);
+            labelContainer.childNodes[i].innerHTML = classPrediction;
+            if (i == 0 && prediction[i].probability.toFixed(2) < 0.5) {
+                document.getElementById("led-indicator").innerHTML = "Off";
+            } else if (i == 1 && prediction[i].probability.toFixed(2) > 0.5) {
+                document.getElementById("led-indicator").innerHTML = "On";
+            }
+        }
+    }
+
+
     const seatContainer = document.getElementById('seatContainer');
     const feedbackContent = document.getElementById('feedbackContent');
     const seats = 21;
@@ -212,38 +280,11 @@
         <img src="/images/icon-seat.png" alt="Seat Icon">
         <p>Seat ${i}</p>
         <button onclick="activateSeat(${i})">Activate Seat</button>
-        <div class="sub-devices" id="subDevices${i}">
-          <div class="sub-device">
-            <img src="/images/icon-camera.png" alt="Camera Icon">
-            <div class="sub-device-text">Camera</div>
-            <button onclick="toggleSubDevice(${i}, 'Camera', 'on')">On</button>
-            <button onclick="toggleSubDevice(${i}, 'Camera', 'off')">Off</button>
-          </div>
-          <div class="sub-device">
-            <img src="/images/icon-light.png" alt="Light Icon">
-            <div class="sub-device-text">Light</div>
-            <button onclick="toggleSubDevice(${i}, 'Light', 'on')">On</button>
-            <button onclick="toggleSubDevice(${i}, 'Light', 'off')">Off</button>
-          </div>
-          <div class="sub-device">
-            <img src="/images/icon-led.png" alt="LED Icon">
-            <div class="sub-device-text">LED</div>
-            <button onclick="toggleSubDevice(${i}, 'LED', 'on')">On</button>
-            <button onclick="toggleSubDevice(${i}, 'LED', 'off')">Off</button>
-          </div>
-        </div>
       `;
       seatContainer.appendChild(seatDiv);
     }
 
     function activateSeat(seatNumber) {
-      const subDevices = document.getElementById(`subDevices${seatNumber}`);
-      subDevices.style.display = subDevices.style.display === 'none' || !subDevices.style.display ? 'block' : 'none';
-      feedbackContent.innerHTML = `Seat ${seatNumber} is now active.<br>
-        <strong>Camera:</strong> Adjusted<br>
-        <strong>Light:</strong> Good<br>
-        <strong>LED:</strong> Working`;
-
       // 관리자 페이지로 좌석 활성화 상태 전송
       fetch('/update-seat-status', {
         method: 'POST',
@@ -254,10 +295,6 @@
         if (!response.ok) throw new Error('Failed to update seat status');
       })
       .catch(error => console.error(error));
-    }
-
-    function toggleSubDevice(seatNumber, subDevice, action) {
-      alert(`Seat ${seatNumber} ${subDevice} is turned ${action}`);
     }
 
     function sendEmergencyAlert() {
