@@ -1,0 +1,141 @@
+// iot-simulator.html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>IoT Device Simulator</title>
+    <style>
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>IoT Device Simulator</h1>
+        <div>
+            <label>Device ID: </label>
+            <input type="text" id="deviceId" value="device001">
+        </div>
+        <div>
+            <label>Temperature: </label>
+            <span id="temperature">25.0</span>°C
+        </div>
+        <div>
+            <label>Humidity: </label>
+            <span id="humidity">50</span>%
+        </div>
+        <div class="status" id="status"></div>
+    </div>
+    <script>
+        class IoTSimulator {
+            constructor(deviceId) {
+                this.deviceId = deviceId;
+                this.baseUrl = 'http://your-onem2m-server:8080';
+                this.headers = {
+                    'X-M2M-Origin': 'admin:admin',
+                    'Content-Type': 'application/json;ty=4',
+                    'Accept': 'application/json'
+                };
+                this.temperature = 25.0;
+                this.humidity = 50;
+            }
+
+            async initialize() {
+                // Create AE (Application Entity) if not exists
+                await this.createAE();
+                // Create container if not exists
+                await this.createContainer();
+                // Start sending data
+                this.startSimulation();
+            }
+
+            async createAE() {
+                const aeData = {
+                    "m2m:ae": {
+                        "rn": this.deviceId,
+                        "api": "N01.com.example.iot-simulator",
+                        "rr": true
+                    }
+                };
+
+                try {
+                    await fetch(`${this.baseUrl}/~/in-cse/in-name`, {
+                        method: 'POST',
+                        headers: this.headers,
+                        body: JSON.stringify(aeData)
+                    });
+                } catch (error) {
+                    console.log('AE might already exist or error:', error);
+                }
+            }
+
+            async createContainer() {
+                const containerData = {
+                    "m2m:cnt": {
+                        "rn": "DATA",
+                        "mni": 100
+                    }
+                };
+
+                try {
+                    await fetch(`${this.baseUrl}/~/in-cse/in-name/${this.deviceId}`, {
+                        method: 'POST',
+                        headers: this.headers,
+                        body: JSON.stringify(containerData)
+                    });
+                } catch (error) {
+                    console.log('Container might already exist or error:', error);
+                }
+            }
+
+            async sendData() {
+                // Simulate sensor data changes
+                this.temperature += (Math.random() - 0.5) * 0.5;
+                this.humidity += (Math.random() - 0.5) * 2;
+                
+                const contentInstance = {
+                    "m2m:cin": {
+                        "con": {
+                            "temperature": this.temperature.toFixed(1),
+                            "humidity": Math.round(this.humidity)
+                        }
+                    }
+                };
+
+                try {
+                    const response = await fetch(`${this.baseUrl}/~/in-cse/in-name/${this.deviceId}/DATA`, {
+                        method: 'POST',
+                        headers: this.headers,
+                        body: JSON.stringify(contentInstance)
+                    });
+                    
+                    document.getElementById('temperature').textContent = this.temperature.toFixed(1);
+                    document.getElementById('humidity').textContent = Math.round(this.humidity);
+                    document.getElementById('status').textContent = `Data sent successfully at ${new Date().toLocaleTimeString()}`;
+                } catch (error) {
+                    document.getElementById('status').textContent = `Error sending data: ${error.message}`;
+                }
+            }
+
+            startSimulation() {
+                // Send data every 5 seconds
+                setInterval(() => this.sendData(), 5000);
+            }
+        }
+
+        // Start simulator when page loads
+        window.onload = () => {
+            const deviceId = document.getElementById('deviceId').value;
+            const simulator = new IoTSimulator(deviceId);
+            simulator.initialize();
+        };
+    </script>
+</body>
+</html>
