@@ -56,7 +56,7 @@ app.delete("/devices/:name", function (req, res) {
   map.remove(req.params.name);
   deleteAE(req.params.name);
 
-  res.sendStatus(204);
+  res.sendStatus(204);  
 });
 
 app.post("/devices/:name", function (req, res) {

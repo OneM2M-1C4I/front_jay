@@ -86,7 +86,7 @@
       font-size: 1.5em;
     }
 
-    .modal-content input[type="password"] {
+    .modal-content input {
       width: 90%;
       padding: 10px;
       margin-bottom: 20px;
@@ -110,20 +110,15 @@
       background-color: darkblue;
     }
 
-    /* 설명 텍스트 */
     .description {
       text-align: center;
       margin-top: 30px;
       padding: 0 20px;
       font-size: 1.2em;
       line-height: 1.6;
-      font-style: italic; /* 기울임 */
-      color: #5a3d2f; /* 고동색 */
+      font-style: italic;
+      color: #5a3d2f;
       max-width: 600px;
-    }
-
-    .description p {
-      margin-bottom: 20px; /* 문단 간 간격 추가 */
     }
   </style>
 </head>
@@ -140,19 +135,19 @@
     </div>
   </div>
 
-  <!-- 설명 텍스트 -->
   <div class="description">
     <p>At SSZ, we are dedicated to cultivating a sophisticated and managed smart study environment tailored for optimal learning experiences.</p>
     <p>Our system empowers students by providing personalized feedback on their posture and the flexibility to adjust feedback intervals to suit their needs. In times of emergency, a simple alert feature ensures immediate communication with administrators.</p>
-    <p>Administrators, on the other hand, are equipped with tools to remotely monitor and enhance the study environment, offering a seamless view of seat occupancy and posture analytics.Together, we aim to revolutionize the way learning spaces are managed.</p>
+    <p>Administrators, on the other hand, are equipped with tools to remotely monitor and enhance the study environment, offering a seamless view of seat occupancy and posture analytics. Together, we aim to revolutionize the way learning spaces are managed.</p>
   </div>
 
   <!-- 모달 -->
   <div id="passwordModal" class="modal">
     <div class="modal-content">
-      <h2>Enter Password</h2>
-      <input type="password" id="passwordInput" placeholder="Enter password">
-      <button onclick="verifyPassword()">Submit</button>
+      <h2>Login</h2>
+      <input type="text" id="usernameInput" placeholder="Enter Username">
+      <input type="password" id="passwordInput" placeholder="Enter Password">
+      <button onclick="verifyCredentials()">Login</button>
     </div>
   </div>
 
@@ -165,27 +160,30 @@
       document.getElementById("passwordModal").style.display = "flex";
     }
 
-    // 비밀번호 검증
-    function verifyPassword() {
+    // 아이디와 비밀번호 검증
+    function verifyCredentials() {
+      const username = document.getElementById("usernameInput").value;
       const password = document.getElementById("passwordInput").value;
-      if (password === "0000") {
-        if (targetPage === "admin") {
-          alert("Access granted to Admin Page!");
-          window.location.href = "/admin"; // 관리자 페이지로 이동
-        } else if (targetPage === "student") {
-          alert("Access granted to Student Page!");
-          window.location.href = "/student"; // 학생 페이지로 이동
-        }
+
+      // 간단한 아이디 및 비밀번호 검증
+      if (targetPage === "student" && username === "student" && password === "0000") {
+        alert("Login successful. Redirecting to Student Page...");
+        window.location.href = "/student";
+      } else if (targetPage === "admin" && username === "admin" && password === "0000") {
+        alert("Login successful. Redirecting to Admin Page...");
+        window.location.href = "/admin";
       } else {
-        alert("Incorrect password. Access denied.");
+        alert("Invalid username or password.");
       }
+
       closeModal();
     }
 
     // 모달 닫기
     function closeModal() {
       document.getElementById("passwordModal").style.display = "none";
-      document.getElementById("passwordInput").value = ""; // 입력 필드 초기화
+      document.getElementById("usernameInput").value = ""; // 입력 필드 초기화
+      document.getElementById("passwordInput").value = "";
     }
   </script>
 </body>

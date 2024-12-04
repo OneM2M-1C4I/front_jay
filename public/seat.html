@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Study Room Seat Layout</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <style>
+    /* 기존 스타일 유지 */
+    .seat-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 20px;
+      padding: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .seat-card {
+      cursor: pointer;
+      transition: all 0.3s ease;
+      aspect-ratio: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      border: 1px solid #dee2e6;
+      border-radius: 10px;
+      padding: 15px;
+    }
+    .seat-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+    .seat-card.inactive {
+      background-color: #f8f9fa;
+    }
+    .seat-card.active {
+      background-color: #e3f2fd;
+      border-color: #90caf9;
+    }
+    .seat-number {
+      font-size: 1.2rem;
+      font-weight: bold;
+      color: #495057;
+    }
+    .seat-status {
+      font-size: 0.8rem;
+      margin-top: 5px;
+      color: #6c757d;
+    }
+    .modal-header {
+      background-color: #f8f9fa;
+      border-bottom: 2px solid #dee2e6;
+    }
+    .modal-body {
+      padding: 20px;
+    }
+    .status-item {
+      padding: 10px;
+      margin: 5px 0;
+      border-radius: 5px;
+      background-color: #f8f9fa;
+    }
+    .page-header {
+      text-align: center;
+      padding: 30px 0;
+      background-color: #f8f9fa;
+      margin-bottom: 30px;
+    }
+    .legend {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .legend-color {
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+      border: 1px solid #dee2e6;
+    }
+    .legend-active {
+      background-color: #e3f2fd;
+      border-color: #90caf9;
+    }
+    .legend-inactive {
+      background-color: #f8f9fa;
+    }
+    .facility-dashboard {
+      background-color: #f8f9fa;
+      padding: 20px;
+      border-radius: 10px;
+      margin-top: 30px;
+    }
+    .facility-card {
+      background-color: white;
+      border-radius: 8px;
+      padding: 15px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .nav-tabs .nav-link.active {
+      font-weight: bold;
+      border-bottom: 3px solid #0d6efd;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="page-header">
+      <h2 class="mb-3">독서실 좌석 배치도</h2>
+      <p class="text-muted">클릭하시면 좌석 상세 정보를 확인하실 수 있습니다.</p>
+      
+      <div class="legend">
+        <div class="legend-item">
+          <div class="legend-color legend-active"></div>
+          <span>활성화된 좌석</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-color legend-inactive"></div>
+          <span>비활성화된 좌석</span>
+        </div>
+      </div>
+    </div>
+    
+    <div class="container">
+      <div class="seat-grid">
+        <div v-for="item in seat" 
+             :key="item.number" 
+             class="seat-card"
+             :class="{ 'active': isActive(item), 'inactive': !isActive(item) }"
+             @click="showModal(item)">
+          <div class="seat-number">{{ item.number }}번</div>
+          <div class="seat-status">{{ getSeatStatus(item) }}</div>
+        </div>
+      </div>
+
+      <!-- Modal with Tabs -->
+      <div class="modal fade" id="seatModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">{{ selectedSeat ? `${selectedSeat.number}번 좌석 정보` : '' }}</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" v-if="selectedSeat">
+              <ul class="nav nav-tabs mb-3">
+                <li class="nav-item">
+                  <a class="nav-link" :class="{ active: activeTab === 'admin' }" @click="activeTab = 'admin'" href="#">Admin Mode</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" :class="{ active: activeTab === 'user' }" @click="activeTab = 'user'" href="#">User Mode</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" :class="{ active: activeTab === 'test' }" @click="activeTab = 'test'" href="#">Test Mode</a>
+                </li>
+              </ul>
+
+              <!-- Admin Mode -->
+              <div v-if="activeTab === 'admin'">
+                <!-- AE 상태 보기 -->
+                <h5>Resource AE</h5>
+                <div class="status-item">
+                  <strong>조명 상태:</strong> 
+                  <span class="ms-2">{{ selectedSeat.light === 'Not Found' ? '연결없음' : selectedSeat.light }}</span>
+                </div>
+                <div class="status-item">
+                  <strong>카메라 상태:</strong>
+                  <span class="ms-2">{{ selectedSeat.camera === 'Not Found' ? '연결없음' : selectedSeat.camera }}</span>
+                </div>
+                <div class="status-item">
+                  <strong>LED 상태:</strong>
+                  <span class="ms-2">{{ selectedSeat.led === 'Not Found' ? '연결없음' : selectedSeat.led }}</span>
+                </div>
+
+                <!-- Admin Option -->
+                <h5 class="mt-3">Admin Option</h5>
+                <button class="btn btn-sm btn-danger" @click="delete_seat(selectedSeat.number)">강제 퇴장</button>
+              </div>
+
+              <!-- User Mode -->
+              <div v-if="activeTab === 'user'">
+                <h5>User Mode</h5>
+                <div class="mb-3">
+                  <label for="userId" class="form-label">ID</label>
+                  <input type="text" id="userId" v-model="userId" class="form-control">
+                </div>
+                <div class="mb-3">
+                  <label for="userPassword" class="form-label">Password</label>
+                  <input type="password" id="userPassword" v-model="userPassword" class="form-control">
+                </div>
+                <div v-if="!selectedSeat.userId">
+                  <button class="btn btn-primary" @click="useSeat">좌석 사용</button>
+                </div>
+                <div v-else-if="selectedSeat.userId === userId">
+                  <button class="btn btn-warning" @click="exitSeat">퇴장</button>
+                </div>
+                <div v-else>
+                  <p>이미 다른 사용자가 사용 중인 좌석입니다.</p>
+                </div>
+              </div>
+
+              <!-- Test Mode -->
+              <div v-if="activeTab === 'test'">
+                <!-- Test 관련 내용 -->
+                <div class="mb-3">
+                  <h5>Test Option</h5>
+                  <button class="btn btn-primary me-2" @click="testDevice('light')">조명 테스트</button>
+                  <button class="btn btn-primary me-2" @click="testDevice('camera')">카메라 테스트</button>
+                  <button class="btn btn-primary" @click="testDevice('led')">LED 테스트</button>
+                  <hr/>
+                </div>
+                <div class="alert alert-info" v-if="testResult">
+                  {{ testResult }}
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Facility Dashboard -->
+      <!-- 기존 시설 현황 대시보드 유지 -->
+      <div class="facility-dashboard">
+        <h4 class="mb-4">공용 시설 현황</h4>
+        <div class="row">
+          <!-- 각 시설 카드 반복 렌더링 -->
+          <div class="col-md-3" v-for="(facility, index) in facilityStatusList" :key="index">
+            <div class="facility-card">
+              <h6>{{ facility.name }}</h6>
+              <div class="mt-2">
+                <div v-for="(value, key) in facility.data" :key="key">
+                  <div>{{ key }}: {{ value }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  <!-- 스크립트 영역 -->
+  <script>
+    const { createApp } = Vue;
+    createApp({
+      data() {
+        return {
+          tinyIoT_API: "http://34.122.123.241:3000/TinyIoT",
+          seat: Array.from({ length: 21 }, (_, i) => ({
+            number: i + 1,
+            light: '연결중...',
+            camera: '연결중...',
+            led: '연결중...',
+            userId: null  // 유저 ID 저장
+          })),
+          selectedSeat: null,
+          modal: null,
+          activeTab: 'admin',  // 기본 탭을 admin으로 설정
+          testResult: '',
+          userId: '',
+          userPassword: '',
+          facilityStatusList: [
+            {
+              name: '산소 농도',
+              data: {
+                '현재': '연결중...',
+                '설정값': '연결중...'
+              }
+            },
+            {
+              name: '산소 발생기',
+              data: {
+                '상태': '연결중...',
+                '가동시간': '연결중...'
+              }
+            },
+            {
+              name: '에어컨',
+              data: {
+                '상태': '연결중...',
+                '설정온도': '연결중...'
+              }
+            },
+            {
+              name: '온도 센서',
+              data: {
+                '현재온도': '연결중...',
+                '습도': '연결중...'
+              }
+            }
+          ]
+        };
+      },
+      mounted() {
+        this.initializeData();
+        this.modal = new bootstrap.Modal(document.getElementById('seatModal'));
+      },
+      methods: {
+        async initializeData() {
+          await this.find_all_seat();
+          await this.updateFacilityStatus();
+        },
+        isActive(seat) {
+          return ['light', 'camera', 'led'].some(device => 
+            seat[device] !== 'Not Found' && seat[device] !== '연결중...'
+          );
+        },
+        getSeatStatus(seat) {
+          if (['light', 'camera', 'led'].every(device => seat[device] === '연결중...')) {
+            return '연결중...';
+          } else if (this.isActive(seat)) {
+            return '활성화';
+          } else {
+            return '비활성화';
+          }
+        },
+        showModal(seat) {
+          this.selectedSeat = seat;
+          this.activeTab = 'admin';  // 모달 열릴 때 기본 탭을 admin으로 설정
+          this.testResult = '';
+          this.userId = '';
+          this.userPassword = '';
+          this.modal.show();
+        },
+        async find_ae(name) {
+          const myHeaders = new Headers();
+          myHeaders.append("X-M2M-RI", `req${Date.now()}`);
+          myHeaders.append("X-M2M-origin", `C${name}`);
+          myHeaders.append("Accept", "application/json");
+          myHeaders.append("X-M2M-RVI", "2a");
+  
+          const requestOptions = {
+            method: "GET",
+            headers: myHeaders,
+            redirect: "follow"
+          };
+  
+          try {
+            const response = await fetch(`${this.tinyIoT_API}/${name}`, requestOptions);
+            if (!response.ok) {
+              console.error(`HTTP error! status: ${response.status}`);
+              return null;
+            }
+            const result = await response.json();
+            return result;
+          } catch (error) {
+            console.error(error);
+            return null;
+          }
+        },
+        delete_ae(name) {
+          const myHeaders = new Headers();
+          myHeaders.append("X-M2M-RI", `req${Date.now()}`);
+          myHeaders.append("X-M2M-origin", `C${name}`);
+          myHeaders.append("Content-Type", "application/json;ty=2");
+          myHeaders.append("X-M2M-RVI", "2a");
+  
+          const requestOptions = {
+            method: "DELETE",
+            headers: myHeaders,
+            redirect: "follow"
+          };
+  
+          fetch(`${this.tinyIoT_API}/${name}`, requestOptions)
+            .then((response) => response.text())
+            .then((result) => console.log(result))
+            .catch((error) => console.error(error));
+        },
+        delete_seat(number) {
+          this.delete_ae(`SeatLight${number}`);
+          this.delete_ae(`SeatCamera${number}`);
+          this.delete_ae(`SeatLED${number}`);
+          // 유저 정보 초기화
+          this.seat[number - 1].userId = null;
+          alert(`${number}번 좌석의 강제 퇴장이 완료되었습니다.`);
+          // 해당 좌석만 업데이트
+          this.updateSeatStatus(number);
+        },
+        async find_all_seat() {
+          for (let i = 1; i <= 21; i++) {
+            const lightAE = await this.find_ae(`SeatLight${i}`);
+            const cameraAE = await this.find_ae(`SeatCamera${i}`);
+            const ledAE = await this.find_ae(`SeatLED${i}`);
+            
+            this.seat[i - 1] = {
+              number: i,
+              light: lightAE ? '활성화' : 'Not Found',
+              camera: cameraAE ? '활성화' : 'Not Found',
+              led: ledAE ? '활성화' : 'Not Found',
+              userId: this.seat[i - 1].userId  // 기존 유저 정보 유지
+            };
+          }
+        },
+        async initializeFacility() {
+          const facilities = ['O2Level', 'O2Gen', 'Aircon', 'temp'];
+          
+          for (const facility of facilities) {
+            const myHeaders = new Headers();
+            myHeaders.append("X-M2M-RI", `req${Date.now()}`);
+            myHeaders.append("X-M2M-origin", `C${facility}`);
+            myHeaders.append("Content-Type", "application/json;ty=2");
+            myHeaders.append("X-M2M-RVI", "2a");
+
+            const payload = {
+              "m2m:ae": {
+                  "rn": "${facility}",
+                  "api": "Nmyapp3",
+                  "lbl": [
+                      "key1",
+                      "key2"
+                  ],
+                  "srv": [
+                      "3"
+                  ],
+                  "rr": true
+              }
+            }; 
+
+
+            const requestOptions = {
+              method: "POST",
+              headers: myHeaders,
+              body: JSON.stringify(payload),
+              redirect: "follow"
+            };
+
+            try {
+              const response = await fetch(`${this.tinyIoT_API}/${aeName}/Data`, requestOptions);
+              if (!response.ok) {
+                console.error(`Failed to initialize ${facility}. HTTP error! status: ${response.status}`);
+              } else {
+                console.log(`${facility} initialized successfully.`);
+              }
+            } catch (error) {
+              console.error(`Error initializing ${facility}:`, error);
+            }
+          }
+
+        },
+        async updateFacilityStatus() {
+          // 실제 API 호출로 대체해야 합니다.
+          // 여기서는 setTimeout을 사용하여 데이터를 업데이트합니다.
+          setTimeout(() => {
+            this.facilityStatusList = [
+              {
+                name: '산소 농도',
+                data: {
+                  '현재': '21.0%',
+                  '설정값': '23.0%'
+                }
+              },
+              {
+                name: '산소 발생기',
+                data: {
+                  '상태': '작동중',
+                  '가동시간': '4시간'
+                }
+              },
+              {
+                name: '에어컨',
+                data: {
+                  '상태': '작동중',
+                  '설정온도': '24°C'
+                }
+              },
+              {
+                name: '온도 센서',
+                data: {
+                  '현재온도': '25.2°C',
+                  '습도': '45%'
+                }
+              }
+            ];
+          }, 1000);
+        },
+        async testDevice(deviceType) {
+          this.testResult = `${deviceType} 테스트 중...`;
+          try {
+            const aeName = `${deviceType === 'light' ? 'SeatLight' : deviceType === 'camera' ? 'SeatCamera' : 'SeatLED'}${this.selectedSeat.number}`;
+            const testResponse = await this.sendTestCommand(aeName);
+            if (testResponse) {
+              this.testResult = `${deviceType} 테스트 성공`;
+            } else {
+              this.testResult = `${deviceType} 테스트 실패`;
+            }
+          } catch (error) {
+            console.error(error);
+            this.testResult = `${deviceType} 테스트 중 오류 발생`;
+          }
+        },
+        async sendTestCommand(aeName) {
+          const myHeaders = new Headers();
+          myHeaders.append("X-M2M-RI", `req${Date.now()}`);
+          myHeaders.append("X-M2M-origin", `C${aeName}`);
+          myHeaders.append("Content-Type", "application/json;ty=4");
+          myHeaders.append("X-M2M-RVI", "2a");
+  
+          const payload = {
+            "m2m:cin": {
+              "con": "test"  // 테스트 명령어 또는 데이터
+            }
+          };
+  
+          const requestOptions = {
+            method: "POST",
+            headers: myHeaders,
+            body: JSON.stringify(payload),
+            redirect: "follow"
+          };
+  
+          try {
+            const response = await fetch(`${this.tinyIoT_API}/${aeName}/Data`, requestOptions);
+            if (!response.ok) {
+              console.error(`HTTP error! status: ${response.status}`);
+              return false;
+            }
+            return true;
+          } catch (error) {
+            console.error(error);
+            return false;
+          }
+        },
+        // 좌석 사용
+        useSeat() {
+          if (!this.userId || !this.userPassword) {
+            alert('ID와 비밀번호를 입력해주세요.');
+            return;
+          }
+          // 유저 인증 로직 (실제 구현 필요)
+          // 여기서는 임시로 모든 입력을 통과시킵니다.
+          this.selectedSeat.userId = this.userId;
+          alert(`${this.selectedSeat.number}번 좌석을 사용합니다.`);
+          this.modal.hide();
+        },
+        // 퇴장
+        exitSeat() {
+          if (!this.userId || !this.userPassword) {
+            alert('ID와 비밀번호를 입력해주세요.');
+            return;
+          }
+          if (this.selectedSeat.userId !== this.userId) {
+            alert('사용자 정보가 일치하지 않습니다.');
+            return;
+          }
+          // 유저 인증 로직 (실제 구현 필요)
+          // 여기서는 임시로 모든 입력을 통과시킵니다.
+          this.selectedSeat.userId = null;
+          alert(`${this.selectedSeat.number}번 좌석에서 퇴장합니다.`);
+          this.modal.hide();
+          // 해당 좌석만 업데이트
+          this.updateSeatStatus(this.selectedSeat.number);
+        },
+        // 특정 좌석만 업데이트
+        async updateSeatStatus(number) {
+          const index = number - 1;
+          const lightAE = await this.find_ae(`SeatLight${number}`);
+          const cameraAE = await this.find_ae(`SeatCamera${number}`);
+          const ledAE = await this.find_ae(`SeatLED${number}`);
+          
+          this.seat[index] = {
+            number: number,
+            light: lightAE ? '활성화' : 'Not Found',
+            camera: cameraAE ? '활성화' : 'Not Found',
+            led: ledAE ? '활성화' : 'Not Found',
+            userId: this.seat[index].userId  // 유저 정보 유지 또는 초기화
+          };
+        }
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
