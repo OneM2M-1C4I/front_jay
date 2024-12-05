@@ -127,7 +127,44 @@
         </div>
       </div>
     </div>
-    
+    <div class="container mt-4">
+      
+      <!-- 로그인 상태 표시 -->
+      <div id="loginStatus" class="mt-2"></div>
+  
+      <!-- 로그인 버튼 -->
+      <button type="button" class="btn btn-primary mt-4" data-bs-toggle="modal" data-bs-target="#loginModal">
+        로그인
+      </button>
+  
+      <!-- 로그인 모달 -->
+      <div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="loginModalLabel">로그인</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <form id="loginForm">
+                <div class="mb-3">
+                  <label for="loginId" class="form-label">아이디</label>
+                  <input type="text" class="form-control" id="loginId" placeholder="아이디를 입력하세요" required>
+                </div>
+                <div class="mb-3">
+                  <label for="loginPassword" class="form-label">비밀번호</label>
+                  <input type="password" class="form-control" id="loginPassword" placeholder="비밀번호를 입력하세요" required>
+                </div>
+              </form>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+              <button type="button" class="btn btn-primary" id="loginButton" @click="handleLogin">로그인</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
     <div class="container">
       <div class="seat-grid">
         <div v-for="item in seat" 
@@ -301,10 +338,59 @@
         };
       },
       mounted() {
-        this.initializeData();
-        this.modal = new bootstrap.Modal(document.getElementById('seatModal'));
-      },
+          this.initializeData();
+          this.initializeFacility();
+          this.modal = new bootstrap.Modal(
+            document.getElementById("seatModal")
+          );
+
+          // 3초마다 updateFacilityStatus 실행
+          setInterval(() => {
+            this.updateFacilityStatus();
+          }, 3000);
+        },
       methods: {
+        async handleLogin() {
+          // 로그인 입력값 가져오기
+          const loginId = document.getElementById("loginId").value;
+          const loginPassword = document.getElementById("loginPassword").value;
+      
+          try {
+            // 서버로 로그인 정보 전송
+            const response = await fetch("http://34.122.123.241:8369/api/login", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ loginId, loginPassword }), // JSON 형식으로 전송
+            });
+      
+            if (!response.ok) {
+              // HTTP 상태 코드가 200이 아닌 경우 처리
+              throw new Error("Login failed with status " + response.status);
+            }
+      
+            const data = await response.json();
+      
+            if (data.success) {
+              // 로그인 성공 시 처리
+              alert(`환영합니다, ${data.user.name}님!`);
+              document.getElementById("loginStatus").innerHTML = `
+                <div class="alert alert-success" role="alert">
+                  환영합니다, ${data.user.name}님! 역할: ${data.user.role}
+                </div>`;
+              // 모달 닫기
+              const modal = document.getElementById("loginModal");
+              const bootstrapModal = bootstrap.Modal.getInstance(modal);
+              bootstrapModal.hide();
+            } else {
+              // 로그인 실패 시 처리
+              alert(data.message);
+            }
+          } catch (error) {
+            // 네트워크 또는 기타 오류 처리
+            console.error("Error during login:", error);
+            alert("로그인 중 문제가 발생했습니다. 다시 시도해 주세요.");
+          }
+        },
         async initializeData() {
           await this.find_all_seat();
           await this.updateFacilityStatus();
@@ -401,87 +487,368 @@
           }
         },
         async initializeFacility() {
-          const facilities = ['O2Level', 'O2Gen', 'Aircon', 'temp'];
-          
-          for (const facility of facilities) {
-            const myHeaders = new Headers();
-            myHeaders.append("X-M2M-RI", `req${Date.now()}`);
-            myHeaders.append("X-M2M-origin", `C${facility}`);
-            myHeaders.append("Content-Type", "application/json;ty=2");
-            myHeaders.append("X-M2M-RVI", "2a");
-
-            const payload = {
-              "m2m:ae": {
-                  "rn": "${facility}",
-                  "api": "Nmyapp3",
-                  "lbl": [
-                      "key1",
-                      "key2"
-                  ],
-                  "srv": [
-                      "3"
-                  ],
-                  "rr": true
-              }
-            }; 
-
-
-            const requestOptions = {
-              method: "POST",
-              headers: myHeaders,
-              body: JSON.stringify(payload),
-              redirect: "follow"
+            const rootAEName = "facilities"; // Root AE 이름 정의
+            const facilities = ["O2Level", "O2Gen", "Aircon", "Temp"]; // 시설 목록 정의
+            const baseHeaders_ae = {
+              "X-M2M-RI": `req${Date.now()}`, // 요청 ID를 현재 시간으로 생성
+              "X-M2M-RVI": "2a", // 리소스 버전 정보
             };
 
+            const baseHeaders_con = {
+              "X-M2M-RI": `req${Date.now()}`, // 요청 ID를 현재 시간으로 생성
+              "X-M2M-RVI": "3", // 리소스 버전 정보
+            };
+
+            const baseHeaders_conins = {
+              "X-M2M-RI": `req${Date.now()}`, // 요청 ID를 현재 시간으로 생성
+              "X-M2M-RVI": "2a", // 리소스 버전 정보
+            };
+
+            // Root AE 삭제
             try {
-              const response = await fetch(`${this.tinyIoT_API}/${aeName}/Data`, requestOptions);
-              if (!response.ok) {
-                console.error(`Failed to initialize ${facility}. HTTP error! status: ${response.status}`);
+              const deleteRootHeaders = {
+                ...baseHeaders_ae, // 기본 헤더 사용
+                "X-M2M-origin": `C${rootAEName}`, // 요청의 원본 AE 설정
+              };
+
+              const deleteRootOptions = {
+                method: "DELETE", // DELETE 요청
+                headers: new Headers(deleteRootHeaders), // 헤더 설정
+              };
+
+              // Root AE 삭제 요청
+              const deleteRootResponse = await fetch(
+                `${this.tinyIoT_API}/${rootAEName}`,
+                deleteRootOptions
+              );
+
+              if (deleteRootResponse.ok) {
+                console.log(`Root AE '${rootAEName}' deleted successfully.`);
               } else {
-                console.log(`${facility} initialized successfully.`);
+                console.error(
+                  `Failed to delete Root AE '${rootAEName}'. HTTP Status: ${deleteRootResponse.status}`
+                );
               }
             } catch (error) {
-              console.error(`Error initializing ${facility}:`, error);
+              console.error(`Error deleting Root AE '${rootAEName}':`, error);
             }
-          }
 
-        },
-        async updateFacilityStatus() {
-          // 실제 API 호출로 대체해야 합니다.
-          // 여기서는 setTimeout을 사용하여 데이터를 업데이트합니다.
-          setTimeout(() => {
-            this.facilityStatusList = [
-              {
-                name: '산소 농도',
-                data: {
-                  '현재': '21.0%',
-                  '설정값': '23.0%'
-                }
-              },
-              {
-                name: '산소 발생기',
-                data: {
-                  '상태': '작동중',
-                  '가동시간': '4시간'
-                }
-              },
-              {
-                name: '에어컨',
-                data: {
-                  '상태': '작동중',
-                  '설정온도': '24°C'
-                }
-              },
-              {
-                name: '온도 센서',
-                data: {
-                  '현재온도': '25.2°C',
-                  '습도': '45%'
-                }
+            // Root AE 생성
+            try {
+              const createRootHeaders = {
+                ...baseHeaders_ae, // 기본 헤더 사용
+                "X-M2M-origin": `C${rootAEName}`, // 요청의 원본 AE 설정
+                "Content-Type": "application/json;ty=2", // 요청 본문 타입 설정
+              };
+
+              const createRootPayload = {
+                "m2m:ae": {
+                  rn: rootAEName, // Root AE 이름
+                  api: "N" + rootAEName, // AE API 이름
+                  rr: true, // 반복 요청 설정
+                },
+              };
+
+              const createRootOptions = {
+                method: "POST", // POST 요청
+                headers: new Headers(createRootHeaders), // 헤더 설정
+                body: JSON.stringify(createRootPayload), // JSON 형식의 본문 설정
+              };
+
+              console.log("Creating Root AE with payload:", createRootPayload); // 요청 본문 로깅
+
+              // Root AE 생성 요청
+              const createRootResponse = await fetch(
+                `${this.tinyIoT_API}`,
+                createRootOptions
+              );
+
+              if (createRootResponse.ok) {
+                console.log(`Root AE '${rootAEName}' created successfully.`);
+              } else {
+                console.error(
+                  `Failed to create Root AE '${rootAEName}'. HTTP Status: ${createRootResponse.status}`
+                );
               }
+            } catch (error) {
+              console.error(`Error creating Root AE '${rootAEName}':`, error);
+            }
+
+            // // 각 시설(AE) 삭제
+            // for (const facility of facilities) {
+            //   try {
+            //     const deleteFacilityHeaders = {
+            //       ...baseHeaders_con, // 기본 헤더 사용
+            //       "X-M2M-origin": `C${facility}`, // 요청의 원본 AE 설정
+            //     };
+
+            //     const deleteFacilityOptions = {
+            //       method: "DELETE", // DELETE 요청
+            //       headers: new Headers(deleteFacilityHeaders), // 헤더 설정
+            //     };
+
+            //     // 각 시설의 컨테이너 삭제 요청
+            //     const deleteFacilityResponse = await fetch(
+            //       `${this.tinyIoT_API}/${rootAEName}/${facility}`,
+            //       deleteFacilityOptions
+            //     );
+
+            //     if (deleteFacilityResponse.ok) {
+            //       console.log(
+            //         `Facility Con '${facility}' deleted successfully.`
+            //       );
+            //     } else {
+            //       console.error(
+            //         `Failed to delete Facility Con '${facility}'. HTTP Status: ${deleteFacilityResponse.status}`
+            //       );
+            //     }
+            //   } catch (error) {
+            //     console.error(
+            //       `Error deleting Facility Con '${facility}':`,
+            //       error
+            //     );
+            //   }
+            // }
+
+            // 각 시설(AE) 생성
+            for (const facility of facilities) {
+              try {
+                const createFacilityHeaders = {
+                  ...baseHeaders_con, // 기본 헤더 사용
+                  "X-M2M-origin": `C${facility}`, // 요청의 원본 AE 설정
+                  "Content-Type": "application/json;ty=3", // 요청 본문 타입 설정
+                };
+
+                const createFacilityPayload = {
+                  "m2m:cnt": {
+                    rn: facility, // 시설 이름
+                  },
+                };
+
+                const createFacilityOptions = {
+                  method: "POST", // POST 요청
+                  headers: new Headers(createFacilityHeaders), // 헤더 설정
+                  body: JSON.stringify(createFacilityPayload), // JSON 형식의 본문 설정
+                };
+
+                console.log(
+                  "Creating Facility with payload:",
+                  createFacilityPayload
+                ); // 요청 본문 로깅
+
+                // 시설 컨테이너 생성 요청
+                const createFacilityResponse = await fetch(
+                  `${this.tinyIoT_API}/${rootAEName}`,
+                  createFacilityOptions
+                );
+
+                if (createFacilityResponse.ok) {
+                  console.log(
+                    `Facility Con '${facility}' created successfully.`
+                  );
+                } else {
+                  console.error(
+                    `Failed to create Facility Con '${facility}'. HTTP Status: ${createFacilityResponse.status}`
+                  );
+                }
+              } catch (error) {
+                console.error(
+                  `Error creating Facility Con '${facility}':`,
+                  error
+                );
+              }
+            }
+
+            // 각 시설의 고정 값 10을 사용해 컨테이너 인스턴스 생성
+            const fixedValue = "10"; // 각 시설에 대해 하드코딩된 값 10
+
+            for (const facility of facilities) {
+              try {
+                // 기본 헤더 설정
+                const createFacilityHeaders = {
+                  ...baseHeaders_conins, // 기본 헤더 사용
+                  "X-M2M-origin": `C${facility}Ins`, // 요청의 원본 AE 설정
+                  "Content-Type": "application/json;ty=4", // 요청 본문 타입 설정
+                };
+
+                // 고정된 값 설정
+                const fixedValue = "10"; // 기본 고정값
+                let conValue = fixedValue;
+
+                // 만약 facility가 "Temp"이면 con에 fixedValue 2개 삽입
+                if (facility === "Temp") {
+                  conValue = `${fixedValue},${fixedValue}`; // Temp에 대해서는 두 개의 값을 삽입
+                }
+
+                // 요청 본문 설정
+                const createFacilityPayload = {
+                  "m2m:cin": {
+                    con: conValue, // 고정된 값 또는 두 개의 값을 설정
+                    lbl: ["lnl1"], // 라벨 설정
+                  },
+                };
+
+                const createFacilityOptions = {
+                  method: "POST", // POST 요청
+                  headers: new Headers(createFacilityHeaders), // 헤더 설정
+                  body: JSON.stringify(createFacilityPayload), // JSON 형식의 본문 설정
+                };
+
+                console.log(
+                  "Creating Facility ConIns with payload:",
+                  createFacilityPayload
+                ); // 요청 본문 로깅
+
+                // 컨테이너 인스턴스 생성 요청
+                const createFacilityResponse = await fetch(
+                  `${this.tinyIoT_API}/${rootAEName}/${facility}`,
+                  createFacilityOptions
+                );
+
+                if (createFacilityResponse.ok) {
+                  console.log(
+                    `Facility ConIns '${facility}' created successfully.`
+                  );
+                } else {
+                  console.error(
+                    `Failed to create Facility ConIns '${facility}'. HTTP Status: ${createFacilityResponse.status}`
+                  );
+                }
+              } catch (error) {
+                console.error(
+                  `Error creating Facility ConIns '${facility}':`,
+                  error
+                );
+              }
+            }
+          },
+          async updateFacilityStatus() {
+            const facilities = [
+              {
+                ae_rn: "facilities",
+                cnt_rn: "O2Level",
+                name: "산소 농도",
+                keys: { 현재: null, 설정값: null },
+              },
+              {
+                ae_rn: "facilities",
+                cnt_rn: "O2Gen",
+                name: "산소 발생기",
+                keys: { 상태: null, 가동시간: null },
+              },
+              {
+                ae_rn: "facilities",
+                cnt_rn: "Aircon",
+                name: "에어컨",
+                keys: { 상태: null, 설정온도: null },
+              },
+              {
+                ae_rn: "facilities",
+                cnt_rn: "Temp",
+                name: "온도 센서",
+                keys: { 현재온도: null, 습도: null },
+              },
             ];
-          }, 1000);
-        },
+
+            try {
+              const statusPromises = facilities.map(async (facility) => {
+                const url = `${this.tinyIoT_API}/${facility.ae_rn}/${facility.cnt_rn}/la`;
+
+                const headers = {
+                  "X-M2M-RI": `req${Date.now()}`, // 요청 ID 생성
+                  "X-M2M-RVI": "2a", // 리소스 버전 정보
+                  "X-M2M-origin": `CAdmin`, // 요청의 원본 AE 설정
+                };
+
+                const options = {
+                  method: "GET",
+                  headers: new Headers(headers),
+                };
+
+                try {
+                  const response = await fetch(url, options);
+
+                  if (response.ok) {
+                    const data = await response.json();
+                    const con = data["m2m:cin"] ? data["m2m:cin"].con : null;
+
+                    // con 값이 존재하면 각 시설에 맞는 데이터를 채워줌
+                    if (con) {
+                      const values = con.split(","); // con 값을 ,로 분리
+                      console.log(con);
+
+                      // 각 시설별로 name에 따라 key를 설정
+                      switch (facility.name) {
+                        case "산소 농도":
+                          facility.keys.현재 = values[0];
+                          facility.keys.설정값 = "설정값";
+                          break;
+
+                        case "산소 발생기":
+                          facility.keys.상태 = "가동중";
+                          facility.keys.가동시간 = values[0];
+                          break;
+
+                        case "에어컨":
+                          facility.keys.상태 = "가동중";
+                          facility.keys.설정온도 = values[0];
+                          break;
+
+                        case "온도 센서":
+                          facility.keys.현재온도 = values[0];
+                          facility.keys.습도 = values[1];
+                          break;
+
+                        default:
+                          // 디폴트 처리 (없으면 "데이터 없음")
+                          Object.keys(facility.keys).forEach((key) => {
+                            facility.keys[key] = "데이터 없음";
+                          });
+                          break;
+                      }
+                    } else {
+                      // con 값이 없으면 모든 값을 "데이터 없음"으로 처리
+                      Object.keys(facility.keys).forEach((key) => {
+                        facility.keys[key] = "데이터 없음";
+                      });
+                    }
+
+                    return {
+                      name: facility.name,
+                      data: facility.keys, // key 값을 포함한 data 반환
+                    };
+                  } else {
+                    console.error(
+                      `Failed to fetch data for ${facility.cnt_rn}: ${response.status}`
+                    );
+                    return null;
+                  }
+                } catch (error) {
+                  console.error(
+                    `Error fetching data for ${facility.cnt_rn}:`,
+                    error
+                  );
+                  return null;
+                }
+              });
+
+              // 모든 요청 완료 후 결과 업데이트
+              const results = await Promise.all(statusPromises);
+
+              // null 값 제외하고 상태 리스트 업데이트
+              this.facilityStatusList = results.filter(
+                (status) => status !== null
+              );
+
+              // 상태 리스트 출력
+              console.log(
+                "Updated Facility Status List:",
+                this.facilityStatusList
+              );
+            } catch (error) {
+              console.error("Error updating facility status:", error);
+            }
+          },
         async testDevice(deviceType) {
           this.testResult = `${deviceType} 테스트 중...`;
           try {
@@ -577,5 +944,4 @@
       }
     }).mount('#app');
   </script>
-</body>
 </html>
