@@ -43,67 +43,42 @@
       ]
     }
   ],
-  "templates": [
+  "facilities": [
     {
       "stream": "up",
-      "type": "Temperature",
+      "type": "O2Level",
+      "unit": "%",
+      "min": 19,
+      "max": 23,
+      "freq": 10,
+      "icon": "images/icon-oxygen.png"
+    },
+    {
+      "stream": "down",
+      "type": "O2Gen",
+      "unit": "",
+      "min": 0,
+      "max": 1,
+      "freq": 5,
+      "icon": "images/icon-generator.png"
+    },
+    {
+      "stream": "down",
+      "type": "Aircon",
+      "unit": "",
+      "min": 0,
+      "max": 1,
+      "freq": 10,
+      "icon": "images/icon-aircon.png"
+    },
+    {
+      "stream": "down",
+      "type": "temp",
       "unit": "°C",
       "min": 18,
-      "max": 22,
+      "max": 26,
       "freq": 10,
       "icon": "images/icon-thermo.png"
-    },
-    {
-      "stream": "up",
-      "type": "Humidity",
-      "unit": "%",
-      "min": 40,
-      "max": 50,
-      "freq": 10,
-      "icon": "images/icon-water.png"
-    },
-    {
-      "stream": "up",
-      "type": "Luminosity",
-      "unit": "Lux",
-      "min": 200,
-      "max": 500,
-      "freq": 5,
-      "icon": "images/icon-sun.png"
-    },
-    {
-      "stream": "up",
-      "type": "Power",
-      "unit": "Kw",
-      "min": 1000,
-      "max": 2000,
-      "freq": 10,
-      "icon": "images/icon-meter.png"
-    },
-    {
-      "stream": "up",
-      "type": "Presence",
-      "unit": "",
-      "min": 0,
-      "max": 1,
-      "freq": 10,
-      "icon": "images/icon-motion.jpg"
-    },
-    {
-      "stream": "down",
-      "type": "Lamp",
-      "unit": "",
-      "min": 0,
-      "max": 1,
-      "icon": "images/icon-light.png"
-    },
-    {
-      "stream": "down",
-      "type": "buzzer",
-      "unit": "",
-      "min": 0,
-      "max": 1,
-      "icon": "https://image.flaticon.com/icons/svg/216/216295.svg"
     }
   ]
 }
