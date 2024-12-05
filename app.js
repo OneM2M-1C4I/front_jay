@@ -1,583 +1,230 @@
 var express = require("express");
 var request = require("request");
-var hashmap = require("hashmap");
-var config = require("config");
 var path = require("path");
 var bodyParser = require("body-parser");
+var fs = require("fs");
 
 var app = express();
-var map = new hashmap();
-
 app.use(bodyParser.json({ type: ["application/*+json", "application/json"] }));
 
-// Define the static file path
 app.use(express.static(__dirname + "/public"));
 
-var cseURL = "http://" + config.cse.ip + ":" + config.cse.port;
-var cseRelease = config.cse.release;
-var templates = config.templates;
-var acpi = {};
-var requestNr = 0;
+let userDB = JSON.parse(fs.readFileSync("userDB.json", "utf-8"));
+
+const tinyIoT_API = "http://34.122.123.241:3000/TinyIoT";
 
 app.get("/", function (req, res) {
   res.sendFile(path.join(__dirname + "/public/index.html"));
 });
 
-app.get("/admin", function (req, res) {
-  res.sendFile(path.join(__dirname + "/public/admin.html"));
-});
-app.get("/student", function (req, res) {
-  res.sendFile(path.join(__dirname + "/public/student.html"));
+app.get("/seat", function (req, res) {
+  res.sendFile(path.join(__dirname + "/public/seat.html"));
 });
 
-/* ################################# 비상버튼 ################################# */
-
-app.get("/templates", function (req, res) {
-  res.send(templates);
-});
-
-app.get("/devices", function (req, res) {
-  var devices = [];
-  map.forEach(function (value, key) {
-    devices.push({
-      typeIndex: value.typeIndex,
-      name: key,
-      type: value.type,
-      data: value.data,
-      icon: value.icon,
-      unit: value.unit,
-      stream: value.stream,
-    });
-  });
-  res.send(devices);
-});
-
-app.delete("/devices/:name", function (req, res) {
-  map.remove(req.params.name);
-  deleteAE(req.params.name);
-
-  res.sendStatus(204);  
-});
-
-app.post("/devices/:name", function (req, res) {
-  let typeIndex = req.query.typeIndex;
-  let name = req.params.name;
-  let value = req.query.value;
-  updateDevice(typeIndex, name, value);
-
-  res.sendStatus(201);
-});
-
-app.post("/devices", function (req, res) {
-  let typeIndex = req.query.type;
-  let name = req.query.name;
-  var object = {
-    typeIndex: typeIndex,
-    type: templates[typeIndex].type,
-    data: random(templates[typeIndex].min, templates[typeIndex].max),
-    icon: templates[typeIndex].icon,
-    unit: templates[typeIndex].unit,
-    stream: templates[typeIndex].stream,
-  };
-  map.set(name, object);
-
-  createAE(name, typeIndex);
-  res.sendStatus(201);
-});
-
-app.listen(config.app.port, function () {
-  console.log("Simulator API listening on port " + config.app.port);
-});
-
-function listen(name, typeIndex) {
-  app.post("/C" + name, function (req, res) {
-    var req_body = req.body["m2m:sgn"].nev.rep["m2m:cin"];
-    if (req_body != undefined) {
-      console.log("\n[NOTIFICATION]");
-      console.log(req.body["m2m:sgn"].nev.rep["m2m:cin"]);
-      var content;
-      if (req.body["m2m:sgn"].nev.rep["m2m:cin"].con == "1") {
-        content = "1";
-      } else {
-        content = "0";
-      }
-      console.log(
-        templates[typeIndex].type + " " + name + " is switched to " + content
-      );
-
-      updateDevice(typeIndex, name, content);
-      res.set("X-M2M-RSC", 2000);
-      res.status(200);
-      if (cseRelease != "1") {
-        res.set("X-M2M-RVI", cseRelease);
-      }
-      res.send();
-    }
-  });
-}
-
-function createAE(name, typeIndex) {
-  console.log("\n[REQUEST]");
-
-  var options = {
-    uri: cseURL + "/" + config.cse.name,
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "X-M2M-Origin": "C" + name,
-      "X-M2M-RI": "req" + requestNr,
-      "X-M2M-RVI": "2a",
-      "Content-Type": "application/json; ty=2",
-    },
-    json: {
-      "m2m:ae": {
-        rn: name,
-        api: "N" + name,
-        rr: false,
+// 로그인 API
+app.post("/api/login", (req, res) => {
+  const { loginId, loginPassword } = req.body;
+  const user = userDB.find(
+    (user) => user.id === loginId && user.password === loginPassword
+  );
+  if (user) {
+    res.status(200).json({
+      success: true,
+      message: "로그인 성공",
+      user: {
+        name: user.name,
+        role: user.role,
+        seat: user.seat
       },
-    },
-  };
-
-  var rr = "false";
-  var poa = "";
-  // console.log("##############");
-  // console.log(templates);
-  // console.log(templates[typeIndex]);
-  if (templates[typeIndex].stream == "down") {
-    options.json["m2m:ae"]["rr"] = true;
-    options.json["m2m:ae"] = Object.assign(options.json["m2m:ae"], {
-      poa: ["http://" + config.app.ip + ":" + config.app.port + "/" + name],
-    });
-    listen(name, typeIndex);
-  }
-
-  console.log("");
-  console.log(options.method + " " + options.uri);
-  console.log(options.json);
-
-  if (cseRelease != "1") {
-    options.headers = Object.assign(options.headers, {
-      "X-M2M-RVI": cseRelease,
-    });
-    options.json["m2m:ae"] = Object.assign(options.json["m2m:ae"], {
-      srv: ["2a"],
-    });
-  }
-
-  requestNr += 1;
-  request(options, function (err, resp, body) {
-    console.log("[RESPONSE]");
-    if (err) {
-      console.log("AE Creation error : " + err);
-    } else {
-      console.log("AE Creation :" + resp.statusCode);
-      if (resp.statusCode == 409) {
-        resetAE(name, typeIndex);
-      } else {
-        if (config.cse.acp_required) {
-          createAccessControlPolicy(name, typeIndex);
-        } else {
-          createDataContainer(name, typeIndex);
-        }
-      }
-    }
-  });
-}
-
-function deleteAE(name) {
-  console.log("\n[REQUEST]");
-
-  var options = {
-    uri: cseURL + "/" + config.cse.name + "/" + name,
-    method: "DELETE",
-    headers: {
-      "X-M2M-Origin": "C" + name,
-      "X-M2M-RI": "req" + requestNr,
-      "X-M2M-RVI": "2a",
-    },
-  };
-
-  if (cseRelease != "1") {
-    options.headers = Object.assign(options.headers, {
-      "X-M2M-RVI": cseRelease,
-    });
-  }
-
-  requestNr += 1;
-  request(options, function (error, response, body) {
-    console.log("[RESPONSE]");
-    if (error) {
-      console.log(error);
-    } else {
-      console.log(response.statusCode);
-      console.log(body);
-    }
-  });
-}
-
-function resetAE(name, typeIndex) {
-  console.log("\n[REQUEST]");
-
-  var options = {
-    uri: cseURL + "/" + config.cse.name + "/" + name,
-    method: "DELETE",
-    headers: {
-      "X-M2M-Origin": "C" + name,
-      "X-M2M-RI": "req" + requestNr,
-      "X-M2M-RVI": "2a",
-    },
-  };
-
-  if (cseRelease != "1") {
-    options.headers = Object.assign(options.headers, {
-      "X-M2M-RVI": cseRelease,
-    });
-  }
-
-  requestNr += 1;
-  request(options, function (error, response, body) {
-    console.log("[RESPONSE]");
-    if (error) {
-      console.log(error);
-    } else {
-      console.log(response.statusCode);
-      console.log(body);
-      createAE(name, typeIndex);
-    }
-  });
-}
-
-function createAccessControlPolicy(name, typeIndex) {
-  console.log("\n[REQUEST]");
-
-  var options = {
-    uri: cseURL + "/" + config.cse.name + "/" + name,
-    method: "POST",
-    headers: {
-      "X-M2M-Origin": "C" + name,
-      "X-M2M-RI": "req" + requestNr,
-      "X-M2M-RVI": "2a",
-      "Content-Type": "application/json;ty=1",
-    },
-    json: {
-      "m2m:acp": {
-        rn: "MyACP",
-        pv: {
-          acr: [
-            {
-              acor: ["all"],
-              acop: 63,
-            },
-          ],
-        },
-        pvs: {
-          acr: [
-            {
-              acor: ["all"],
-              acop: 63,
-            },
-          ],
-        },
-      },
-    },
-  };
-
-  console.log("");
-  console.log(options.method + " " + options.uri);
-  console.log(options.json);
-
-  if (cseRelease != "1") {
-    options.headers = Object.assign(options.headers, {
-      "X-M2M-RVI": cseRelease,
-    });
-  }
-
-  requestNr += 1;
-  request(options, function (error, response, body) {
-    console.log("[RESPONSE]");
-    if (error) {
-      console.log(error);
-    } else {
-      console.log(response.statusCode);
-      console.log(body);
-
-      acpi = {
-        acpi: [config.cse.name + "/" + name + "/MyACP"],
-      };
-      createDataContainer(name, typeIndex);
-    }
-  });
-}
-
-function createDataContainer(name, typeIndex) {
-  console.log("\n[REQUEST]");
-
-  var options = {
-    uri: cseURL + "/" + config.cse.name + "/" + name,
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "X-M2M-Origin": "C" + name,
-      "X-M2M-RI": "req" + requestNr,
-      "X-M2M-RVI": "2a",
-      "Content-Type": "application/json;ty=3",
-    },
-    json: {
-      "m2m:cnt": {
-        rn: "DATA",
-        mni: 10000,
-      },
-    },
-  };
-
-  options.json["m2m:cnt"] = Object.assign(options.json["m2m:cnt"], acpi);
-
-  console.log("");
-  console.log(options.method + " " + options.uri);
-  console.log(options.json);
-
-  if (cseRelease != "1") {
-    options.headers = Object.assign(options.headers, {
-      "X-M2M-RVI": cseRelease,
-    });
-  }
-
-  requestNr += 1;
-  request(options, function (error, response, body) {
-    console.log("[RESPONSE]");
-    if (error) {
-      console.log(error);
-    } else {
-      console.log(response.statusCode);
-      console.log(body);
-
-      createContentInstance(name, typeIndex, fire);
-
-      if (templates[typeIndex].stream == "up") {
-        var fire = setInterval(function () {
-          createContentInstance(name, typeIndex, fire);
-        }, templates[typeIndex].freq * 1000);
-      } else if (templates[typeIndex].stream == "down") {
-        createCommandContainer(name, typeIndex);
-      }
-    }
-  });
-}
-
-function createCommandContainer(name, typeIndex) {
-  console.log("\n[REQUEST]");
-
-  var options = {
-    uri: cseURL + "/" + config.cse.name + "/" + name,
-    method: "POST",
-    headers: {
-      "X-M2M-Origin": "C" + name,
-      "X-M2M-RI": "req" + requestNr,
-      "X-M2M-RVI": "2a",
-      "Content-Type": "application/json;ty=3",
-    },
-    json: {
-      "m2m:cnt": {
-        rn: "COMMAND",
-        mni: 10000,
-      },
-    },
-  };
-
-  options.json["m2m:cnt"] = Object.assign(options.json["m2m:cnt"], acpi);
-
-  console.log("");
-  console.log(options.method + " " + options.uri);
-  console.log(options.json);
-
-  if (cseRelease != "1") {
-    options.headers = Object.assign(options.headers, {
-      "X-M2M-RVI": cseRelease,
-    });
-  }
-
-  requestNr += 1;
-  request(options, function (error, response, body) {
-    console.log("[RESPONSE]");
-    if (error) {
-      console.log(error);
-    } else {
-      console.log(response.statusCode);
-      console.log(body);
-
-      createSubscription(name, typeIndex);
-    }
-  });
-}
-
-function updateDevice(typeIndex, name, data) {
-  var con = data;
-
-  var object = {
-    typeIndex: typeIndex,
-    type: templates[typeIndex].type,
-    data: con,
-    icon: templates[typeIndex].icon,
-    unit: templates[typeIndex].unit,
-    stream: templates[typeIndex].stream,
-  };
-
-  console.log("\n[REQUEST]");
-
-  map.set(name, object);
-
-  var options = {
-    uri: cseURL + "/" + config.cse.name + "/" + name + "/DATA",
-    method: "POST",
-    headers: {
-      "X-M2M-Origin": "C" + name,
-      "X-M2M-RI": "req" + requestNr,
-      "X-M2M-RVI": "2a",
-      "Content-Type": "application/json;ty=4",
-    },
-    json: {
-      "m2m:cin": {
-        con: con,
-      },
-    },
-  };
-
-  console.log("");
-  console.log(options.method + " " + options.uri);
-  console.log(options.json);
-
-  if (cseRelease != "1") {
-    options.headers = Object.assign(options.headers, {
-      "X-M2M-RVI": cseRelease,
-    });
-  }
-
-  requestNr += 1;
-  request(options, function (error, response, body) {
-    console.log("[RESPONSE]");
-    if (error) {
-      console.log(error);
-    } else {
-      console.log(response.statusCode);
-      console.log(body);
-    }
-  });
-}
-
-function createContentInstance(name, typeIndex, fire) {
-  var con = random(
-    templates[typeIndex].min,
-    templates[typeIndex].max
-  ).toString();
-  var object = {
-    typeIndex: typeIndex,
-    type: templates[typeIndex].type,
-    data: con,
-    icon: templates[typeIndex].icon,
-    unit: templates[typeIndex].unit,
-    stream: templates[typeIndex].stream,
-  };
-  if (map.has(name)) {
-    console.log("\n[REQUEST]");
-
-    map.set(name, object);
-
-    var options = {
-      uri: cseURL + "/" + config.cse.name + "/" + name + "/DATA",
-      method: "POST",
-      headers: {
-        "X-M2M-Origin": "C" + name,
-        "X-M2M-RI": "req" + requestNr,
-        "X-M2M-RVI": "2a",
-        "Content-Type": "application/json;ty=4",
-      },
-      json: {
-        "m2m:cin": {
-          con: con,
-        },
-      },
-    };
-
-    console.log("");
-    console.log(options.method + " " + options.uri);
-    console.log(options.json);
-
-    if (cseRelease != "1") {
-      options.headers = Object.assign(options.headers, {
-        "X-M2M-RVI": cseRelease,
-      });
-    }
-
-    requestNr += 1;
-    request(options, function (error, response, body) {
-      console.log("[RESPONSE]");
-      if (error) {
-        console.log(error);
-      } else {
-        console.log(response.statusCode);
-        console.log(body);
-      }
     });
   } else {
-    clearInterval(fire);
+    res.status(401).json({
+      success: false,
+      message: "아이디 또는 비밀번호가 잘못되었습니다.",
+    });
   }
-}
+});
 
-function createSubscription(name, typeIndex) {
-  console.log("\n[REQUEST]");
+// 현재 DB 상의 모든 사용자 정보를 반환 (테스트용)
+app.get("/api/users", (req, res) => {
+  res.json(userDB);
+});
 
-  var options = {
-    uri: cseURL + "/" + config.cse.name + "/" + name + "/COMMAND",
-    method: "POST",
-    headers: {
-      "X-M2M-Origin": "C" + name,
-      "X-M2M-RI": "req" + requestNr,
-      "X-M2M-RVI": "2a",
-      "Content-Type": "application/json;ty=23",
-    },
-    json: {
-      "m2m:sub": {
-        rn: "sub",
-        nu: [
-          "http://" +
-            config.app.ip +
-            ":" +
-            config.app.port +
-            "/" +
-            "C" +
-            name +
-            "?ct=json",
-        ],
-        nct: 2,
-        enc: {
-          net: [3],
-        },
-      },
+// 좌석 사용 요청 API (user 전용)
+// 로그인한 userId와 요청한 seatNumber를 받아 해당 좌석 사용 처리
+app.post("/api/useSeat", async (req, res) => {
+  const { userId, seatNumber } = req.body;
+  const user = userDB.find(u => u.id === userId);
+  if (!user) {
+    return res.status(404).json({ success: false, message: "User not found." });
+  }
+  if (user.role !== 'user') {
+    return res.status(403).json({ success: false, message: "Not a user role." });
+  }
+  if (user.seat && user.seat !== false) {
+    return res.status(400).json({ success: false, message: "User already using a seat." });
+  }
+
+  // AE 및 Container 생성 로직
+  const aeName = `Seat${seatNumber}`;
+  // AE 삭제 후 생성 (초기화)
+  await deleteAE(aeName).catch(e => {});
+  await createAE(aeName);
+  await createContainer(aeName, "SeatLight");
+  await createCIN(aeName, "SeatLight", "Inactive");
+  await createContainer(aeName, "SeatCamera");
+  await createCIN(aeName, "SeatCamera", "Inactive");
+
+  // DB 업데이트
+  user.seat = seatNumber;
+  fs.writeFileSync("userDB.json", JSON.stringify(userDB, null, 2), "utf-8");
+
+  res.json({ success: true, message: `Seat ${seatNumber} is now used by ${userId}` });
+});
+
+// 좌석 퇴장 요청 API
+app.post("/api/releaseSeat", async (req, res) => {
+  const { userId } = req.body;
+  const user = userDB.find(u => u.id === userId);
+  if (!user) {
+    return res.status(404).json({ success: false, message: "User not found." });
+  }
+  if (user.role !== 'user') {
+    return res.status(403).json({ success: false, message: "Not a user role." });
+  }
+
+  if (user.seat === false) {
+    return res.status(400).json({ success: false, message: "User is not using any seat." });
+  }
+
+  const seatNumber = user.seat;
+  const aeName = `Seat${seatNumber}`;
+  
+  // AE 삭제
+  await deleteAE(aeName);
+
+  // DB 업데이트
+  user.seat = false;
+  fs.writeFileSync("userDB.json", JSON.stringify(userDB, null, 2), "utf-8");
+
+  res.json({ success: true, message: `User ${userId} released seat ${seatNumber}` });
+});
+
+// 관리자 강제퇴장 API
+app.post("/api/forceExit", async (req, res) => {
+  const { seatNumber } = req.body;
+  
+  // 어떤 유저가 이 좌석을 쓰고 있는지 확인
+  const user = userDB.find(u => u.seat === seatNumber);
+  if (!user) {
+    return res.status(404).json({ success: false, message: "No user found for this seat." });
+  }
+
+  // AE 삭제
+  const aeName = `Seat${seatNumber}`;
+  await deleteAE(aeName);
+
+  // DB 업데이트
+  user.seat = false;
+  fs.writeFileSync("userDB.json", JSON.stringify(userDB, null, 2), "utf-8");
+
+  res.json({ success: true, message: `Force exited seat ${seatNumber}` });
+});
+
+// 현재 어떤 좌석이 누구에 의해 사용 중인지 반환
+app.get("/api/seatStatus", (req, res) => {
+  // userDB를 조회하여 seat 상태를 반환
+  const seatInfo = Array.from({length: 21}, (_, i) => {
+    const seatNumber = i+1;
+    const occupant = userDB.find(u => u.seat === seatNumber);
+    return {
+      number: seatNumber,
+      userId: occupant ? occupant.id : null
+    };
+  });
+  res.json(seatInfo);
+});
+
+async function createAE(aeName) {
+  const url = tinyIoT_API;
+  const headers = {
+    "X-M2M-RI": `req${Date.now()}`,
+    "X-M2M-RVI": "2a",
+    "X-M2M-origin": `C${aeName}`,
+    "Content-Type": "application/json;ty=2",
+  };
+
+  const payload = {
+    "m2m:ae": {
+        rn: aeName,
+        api: `N.${aeName}`,
+        rr: true,
     },
   };
 
-  console.log("");
-  console.log(options.method + " " + options.uri);
-  console.log(options.json);
-
-  if (cseRelease != "1") {
-    options.headers = Object.assign(options.headers, {
-      "X-M2M-RVI": cseRelease,
-    });
-  }
-
-  requestNr += 1;
-  request(options, function (error, response, body) {
-    console.log("[RESPONSE]");
-    if (error) {
-      console.log(error);
-    } else {
-      console.log(response.statusCode);
-      console.log(body);
-    }
+  await fetch(url, {
+    method: "POST",
+    headers: new Headers(headers),
+    body: JSON.stringify(payload),
   });
 }
 
-function random(min, max) {
-  return Math.floor(Math.random() * (max - min + 1) + min);
+async function deleteAE(aeName) {
+  const url = `${tinyIoT_API}/${aeName}`;
+  const headers = {
+    "X-M2M-RI": `req${Date.now()}`,
+    "X-M2M-RVI": "2a",
+    "X-M2M-origin": `CAdmin`,
+  };
+
+  await fetch(url, {
+    method: "DELETE",
+    headers: new Headers(headers),
+  });
 }
+
+async function createContainer(aeName, containerName) {
+  const url = `${tinyIoT_API}/${aeName}`;
+  const headers = {
+      "X-M2M-RI": `req${Date.now()}`,
+      "X-M2M-RVI": "2a",
+      "X-M2M-origin": `C${containerName}`,
+      "Content-Type": "application/json;ty=3",
+  };
+
+  const payload = {
+      "m2m:cnt": {
+          rn: containerName,
+      },
+  };
+
+  await fetch(url, {
+      method: "POST",
+      headers: new Headers(headers),
+      body: JSON.stringify(payload),
+  });
+}
+
+async function createCIN(aeName, containerName, content) {
+  const url = `${tinyIoT_API}/${aeName}/${containerName}`;
+  const headers = {
+      "X-M2M-RI": `req${Date.now()}`,
+      "X-M2M-RVI": "2a",
+      "X-M2M-origin": `C${containerName}`,
+      "Content-Type": "application/json;ty=4",
+  };
+
+  await fetch(url, {
+      method: "POST",
+      headers: new Headers(headers),
+      body: JSON.stringify({
+          "m2m:cin": {
+              con: content,
+          },
+      }),
+  });
+}
+
+app.listen(8369, function () {
+  console.log("Simulator API listening on port 3000");
+});

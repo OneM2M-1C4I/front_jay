@@ -3,18 +3,35 @@
     "id": "admin",
     "password": "adminpass",
     "name": "Administrator",
-    "role": "admin"
+    "role": "admin",
+    "seat": false
   },
   {
     "id": "user1",
     "password": "user1pass",
     "name": "User One",
-    "role": "user"
+    "role": "user",
+    "seat": false
   },
   {
-    "id": "user2",
-    "password": "user2pass",
-    "name": "User Two",
-    "role": "user"
+    "id": "user3",
+    "password": "pass",
+    "name": "User 3",
+    "role": "user",
+    "seat": 4
+  },
+  {
+    "id": "user6",
+    "password": "pass",
+    "name": "User 6",
+    "role": "user",
+    "seat": 11
+  },
+  {
+    "id": "user7",
+    "password": "pass",
+    "name": "User 7",
+    "role": "user",
+    "seat": false
   }
 ]

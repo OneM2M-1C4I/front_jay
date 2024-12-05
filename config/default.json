@@ -73,7 +73,7 @@
     },
     {
       "stream": "down",
-      "type": "temp",
+      "type": "Temp",
       "unit": "°C",
       "min": 18,
       "max": 26,
