@@ -174,7 +174,7 @@
                class="seat-card"
                :class="{ 'active': isActive(item), 'inactive': !isActive(item) }"
                @click="showModal(item)">
-            <div class="seat-number">{{ item.number }} no.</div>
+            <div class="seat-number"> No.{{ item.number }}</div>
             <div class="seat-status">{{ getSeatStatus(item) }}</div>
           </div>
         </div>

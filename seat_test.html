@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IOT Seat Posture Monitoring</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    <style>
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .control-panel {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Seat</h1>
+        
+        <div class="control-panel">
+            <label for="seatNumber">Seat No:</label>
+            <input type="number" id="seatNumber" min="1" max="100">
+            <button onclick="startMonitoring()" id="startButton">show camera</button>
+        </div>
+
+        <div id="webcam-container"></div>
+        <div id="label-container"></div>
+        <div id="st">1</div>
+    </div>
+
+    <script>
+        const URL = "https://teachablemachine.withgoogle.com/models/qBqDBL5i8/";
+        let model, webcam, labelContainer, maxPredictions;
+        let isMonitoring = false;
+        let seatNumber = null;
+
+        // 가장 확률 높은 클래스 상태를 저장
+        var currentClassState = '1'; // 초기값: class1로 가정
+
+        async function startMonitoring() {
+            const seatInput = document.getElementById('seatNumber');
+            if (!seatInput.value) {
+                alert('좌석 번호를 입력해주세요.');
+                return;
+            }
+            
+            seatNumber = seatInput.value;
+            isMonitoring = true;
+            document.getElementById('startButton').disabled = true;
+            seatInput.disabled = true;
+            
+            await init();
+            startUpdateInterval();
+        }
+
+        async function init() {
+            const modelURL = URL + "model.json";
+            const metadataURL = URL + "metadata.json";
+
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+
+            const flip = true;
+            webcam = new tmImage.Webcam(200, 200, flip);
+            await webcam.setup();
+            await webcam.play();
+            window.requestAnimationFrame(loop);
+
+            const webcamContainer = document.getElementById("webcam-container");
+            webcamContainer.innerHTML = '';
+            webcamContainer.appendChild(webcam.canvas);
+            
+            labelContainer = document.getElementById("label-container");
+            labelContainer.innerHTML = '';
+            for (let i = 0; i < maxPredictions; i++) {
+                labelContainer.appendChild(document.createElement("div"));
+            }
+        }
+
+        async function loop() {
+            if (!isMonitoring) return;
+            webcam.update();
+            await predict();
+            window.requestAnimationFrame(loop);
+        }
+
+        async function predict() {
+            const prediction = await model.predict(webcam.canvas);
+            // 가장 높은 확률의 클래스를 찾는다.
+            let highestProbability = 0;
+            let bestClassName = 'Class 1'; // 기본값
+            for (let i = 0; i < maxPredictions; i++) {
+                if (prediction[i].probability > highestProbability) {
+                    highestProbability = prediction[i].probability;
+                    bestClassName = prediction[i].className;
+                }
+                const classPrediction = prediction[i].className + ": " + prediction[i].probability.toFixed(2);
+                labelContainer.childNodes[i].innerHTML = classPrediction;
+
+            }
+            document.getElementById('st').innerText = bestClassName == 'Class 1' ? '1' : '0';
+        }
+
+        async function updateCameraStatus(stateValue) {
+            try {
+                await fetch(
+                    `http://34.122.123.241:3000/TinyIoT/Seat${seatNumber}/SeatCamera`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'X-M2M-Origin': `CAdmin`,
+                            "Content-Type": "application/json;ty=4",
+                            "X-M2M-RI": "create_cin",
+                            "Accept": "application/json",
+                            "X-M2M-RVI": "2a"
+                        },
+                        body: JSON.stringify({
+                            'm2m:cin': {
+                                'con': stateValue,
+                                'lbl': ['lnl1']
+                            }
+                        })
+                    }
+                ).then(response => {
+                    if (response.ok) {
+                        console.log(`Camera status updated: ${stateValue}`);
+                    } else {
+                        console.error('Failed to update camera status:', response.statusText);
+                    }
+                });
+            } catch (error) {
+                console.error('Error updating camera status:', error);
+            }
+        }
+
+        // 5초마다 현재 highest 클래스 상태(1 또는 2)를 업데이트
+        function startUpdateInterval() {
+            setInterval(async () => {
+                if (!isMonitoring) return;
+                await updateCameraStatus(document.getElementById('st').innerText);
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
