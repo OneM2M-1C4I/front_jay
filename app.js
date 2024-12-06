@@ -13,10 +13,6 @@ let userDB = JSON.parse(fs.readFileSync("userDB.json", "utf-8"));
 
 const tinyIoT_API = "http://34.122.123.241:3000/TinyIoT";
 
-app.get("/", function (req, res) {
-  res.sendFile(path.join(__dirname + "/public/index.html"));
-});
-
 app.get("/seat", function (req, res) {
   res.sendFile(path.join(__dirname + "/public/seat.html"));
 });
